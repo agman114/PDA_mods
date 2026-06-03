@@ -179,20 +179,8 @@ namespace TikTokPda
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
 
-                // Emulate a desktop screen size (769x1100) and scale it down to fit our 490px control
-                try
-                {
-                    await webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setDeviceMetricsOverride", 
-                        "{\"width\":769,\"height\":1100,\"deviceScaleFactor\":1,\"mobile\":false}");
-                    Log("[PDA] Desktop screen emulation enabled.");
-                    
-                    webView.ZoomFactor = 0.637; // 490 / 769
-                    Log("[PDA] ZoomFactor set to " + webView.ZoomFactor);
-                }
-                catch (Exception ex)
-                {
-                    Log("[PDA Error] Failed to enable screen emulation: " + ex.ToString());
-                }
+                // Use native layout size (490x700) to prevent Chromium scaling/decoding issues
+                Log("[PDA] Native layout size active.");
 
                 // Handle process failures
                 webView.CoreWebView2.ProcessFailed += (s, e) =>
@@ -590,25 +578,25 @@ namespace TikTokPda
                                     background: #000000 !important;
                                 }
 
-                                /* Force top-level containers to have a strict width of 769px */
+                                /* Force top-level containers to have a strict width of 490px */
                                 html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
-                                    width: 769px !important;
-                                    max-width: 769px !important;
-                                    min-width: 769px !important;
+                                    width: 490px !important;
+                                    max-width: 490px !important;
+                                    min-width: 490px !important;
                                     margin: 0 auto !important;
                                     padding: 0 !important;
                                     position: relative !important;
                                     display: block !important;
                                 }
 
-                                /* Force article to fill exactly 1100px vertically and 769px horizontally */
+                                /* Force article to fill exactly 700px vertically and 490px horizontally */
                                 [class*=""ArticleItemContainer""] {
-                                    height: 1100px !important;
-                                    min-height: 1100px !important;
-                                    max-height: 1100px !important;
-                                    width: 769px !important;
-                                    max-width: 769px !important;
-                                    min-width: 769px !important;
+                                    height: 700px !important;
+                                    min-height: 700px !important;
+                                    max-height: 700px !important;
+                                    width: 490px !important;
+                                    max-width: 490px !important;
+                                    min-width: 490px !important;
                                     margin: 0 auto !important;
                                     padding: 0 !important;
                                     position: relative !important;
@@ -617,10 +605,10 @@ namespace TikTokPda
 
                                 /* Force flex layout to be absolute full-screen inside article */
                                 [class*=""DivContentFlexLayout""] {
-                                    width: 769px !important;
-                                    height: 1100px !important;
-                                    max-width: 769px !important;
-                                    max-height: 1100px !important;
+                                    width: 490px !important;
+                                    height: 700px !important;
+                                    max-width: 490px !important;
+                                    max-height: 700px !important;
                                     position: absolute !important;
                                     top: 0 !important;
                                     left: 0 !important;
@@ -631,12 +619,12 @@ namespace TikTokPda
 
                                 /* Force media card (video player wrapper) to occupy the entire viewport */
                                 [class*=""SectionMediaCardContainer""] {
-                                    width: 769px !important;
-                                    height: 1100px !important;
-                                    max-width: 769px !important;
-                                    max-height: 1100px !important;
-                                    min-width: 769px !important;
-                                    min-height: 1100px !important;
+                                    width: 490px !important;
+                                    height: 700px !important;
+                                    max-width: 490px !important;
+                                    max-height: 700px !important;
+                                    min-width: 490px !important;
+                                    min-height: 700px !important;
                                     position: absolute !important;
                                     top: 0 !important;
                                     left: 0 !important;
@@ -654,20 +642,20 @@ namespace TikTokPda
                                 /* Reposition interaction action buttons to bottom-right corner over the video player with Glassmorphism and Neon Cyan glow */
                                 [class*=""SectionActionBarContainer""] {
                                     position: absolute !important;
-                                    bottom: 120px !important;
-                                    right: 20px !important;
+                                    bottom: 70px !important;
+                                    right: 10px !important;
                                     z-index: 999 !important;
                                     background: rgba(10, 15, 20, 0.65) !important;
                                     backdrop-filter: blur(10px) !important;
                                     -webkit-backdrop-filter: blur(10px) !important;
                                     border: 1px solid rgba(0, 255, 220, 0.3) !important;
-                                    border-radius: 24px !important;
-                                    padding: 18px 10px !important;
-                                    box-shadow: 0 0 20px rgba(0, 255, 220, 0.25) !important;
+                                    border-radius: 20px !important;
+                                    padding: 12px 6px !important;
+                                    box-shadow: 0 0 15px rgba(0, 255, 220, 0.25) !important;
                                     display: flex !important;
                                     flex-direction: column !important;
                                     align-items: center !important;
-                                    gap: 16px !important;
+                                    gap: 10px !important;
                                 }
 
                                 /* Custom hover animations for the actions */
@@ -680,8 +668,8 @@ namespace TikTokPda
                                 }
                                 [class*=""SectionActionBarContainer""] button:hover,
                                 [class*=""SectionActionBarContainer""] [role=""button""]:hover {
-                                    transform: scale(1.18) !important;
-                                    filter: drop-shadow(0 0 6px rgba(0, 255, 220, 0.8)) !important;
+                                    transform: scale(1.15) !important;
+                                    filter: drop-shadow(0 0 5px rgba(0, 255, 220, 0.8)) !important;
                                 }
 
                                 /* Neon recoloring for SVG icons */
@@ -706,9 +694,9 @@ namespace TikTokPda
                                 [class*=""DivDescription""],
                                 [class*=""DivVideoDescription""] {
                                     position: absolute !important;
-                                    bottom: 120px !important;
-                                    left: 20px !important;
-                                    width: 480px !important;
+                                    bottom: 70px !important;
+                                    left: 10px !important;
+                                    width: 330px !important;
                                     z-index: 999 !important;
                                     background: rgba(10, 15, 20, 0.65) !important;
                                     backdrop-filter: blur(10px) !important;
@@ -717,9 +705,9 @@ namespace TikTokPda
                                     border-top: 1px solid rgba(0, 255, 220, 0.2) !important;
                                     border-right: 1px solid rgba(0, 255, 220, 0.2) !important;
                                     border-bottom: 1px solid rgba(0, 255, 220, 0.2) !important;
-                                    border-radius: 0 16px 16px 0 !important;
-                                    padding: 14px 18px !important;
-                                    box-shadow: 0 0 20px rgba(0, 255, 220, 0.2) !important;
+                                    border-radius: 0 12px 12px 0 !important;
+                                    padding: 10px 14px !important;
+                                    box-shadow: 0 0 15px rgba(0, 255, 220, 0.2) !important;
                                     color: #e0f7f4 !important;
                                     font-family: 'Courier New', Courier, monospace !important;
                                     box-sizing: border-box !important;
