@@ -1,0 +1,978 @@
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+
+namespace TikTokPda
+{
+    public class PdaBrowser : Form
+    {
+        [DllImport("user32.dll")]
+        public static extern bool ReleaseCapture();
+        
+        [DllImport("user32.dll")]
+        public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        private WebView2 webView;
+        private Timer ledTimer;
+        private bool ledState = false;
+        private PdaButton[] buttons;
+        private Point mousePos;
+        private bool isLoading = true;
+        private IntPtr parentHandle = IntPtr.Zero;
+        private bool shouldBlockUnload = false;
+
+        private const string InitialUrl = "https://www.tiktok.com/";
+        private const string MobileUserAgent = "Mozilla/5.0 (Linux; Android 13; SM-S901B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36";
+
+        public PdaBrowser() : this(IntPtr.Zero) { }
+
+        public PdaBrowser(IntPtr parent)
+        {
+            Console.WriteLine("[PDA] Constructor started.");
+            this.parentHandle = parent;
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.Size = new Size(540, 880);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.BackColor = Color.FromArgb(24, 26, 30);
+            this.DoubleBuffered = true;
+            this.Text = "Europan PDA - TikTok";
+
+            // Make the form window region slightly rounded for aesthetics
+            GraphicsPath path = new GraphicsPath();
+            int r = 30; // Radius
+            path.AddArc(0, 0, r, r, 180, 90);
+            path.AddArc(Width - r, 0, r, r, 270, 90);
+            path.AddArc(Width - r, Height - r, r, r, 0, 90);
+            path.AddArc(0, Height - r, r, r, 90, 90);
+            path.CloseAllFigures();
+            this.Region = new Region(path);
+
+            InitializePdaButtons();
+            InitializeWebView();
+            InitializeLedTimer();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            if (parentHandle != IntPtr.Zero)
+            {
+                try
+                {
+                    Console.WriteLine("[PDA] Setting parent window to: " + parentHandle);
+                    SetParent(this.Handle, parentHandle);
+                    
+                    RECT rect;
+                    if (GetWindowRect(parentHandle, out rect))
+                    {
+                        int parentWidth = rect.Right - rect.Left;
+                        int parentHeight = rect.Bottom - rect.Top;
+                        this.Location = new Point((parentWidth - this.Width) / 2, (parentHeight - this.Height) / 2);
+                        Console.WriteLine("[PDA] Embedded and centered inside parent window. Position: " + this.Location);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("[PDA Error] Failed to set parent window: " + ex.ToString());
+                }
+            }
+        }
+
+        private void InitializePdaButtons()
+        {
+            // Bottom buttons (Y coordinates 785 - 835)
+            buttons = new PdaButton[]
+            {
+                new PdaButton
+                {
+                    Bounds = new Rectangle(50, 790, 80, 45),
+                    Label = "BACK",
+                    BorderColor = Color.FromArgb(80, 85, 95),
+                    GlowColor = Color.FromArgb(120, 130, 150),
+                    Action = () => { if (webView != null && webView.CanGoBack) webView.GoBack(); }
+                },
+                new PdaButton
+                {
+                    Bounds = new Rectangle(155, 785, 100, 55), // Home is slightly larger
+                    Label = "HOME",
+                    BorderColor = Color.FromArgb(0, 180, 160),
+                    GlowColor = Color.FromArgb(0, 255, 220),
+                    Action = () => { if (webView != null) webView.Source = new Uri(InitialUrl); }
+                },
+                new PdaButton
+                {
+                    Bounds = new Rectangle(280, 790, 80, 45),
+                    Label = "RELOAD",
+                    BorderColor = Color.FromArgb(80, 85, 95),
+                    GlowColor = Color.FromArgb(120, 130, 150),
+                    Action = () => { if (webView != null) webView.Reload(); }
+                },
+                new PdaButton
+                {
+                    Bounds = new Rectangle(390, 790, 90, 45),
+                    Label = "SHUTDOWN",
+                    BorderColor = Color.FromArgb(180, 40, 40),
+                    GlowColor = Color.FromArgb(255, 50, 50),
+                    Action = () => { Application.Exit(); }
+                }
+            };
+        }
+
+        private static void Log(string message)
+        {
+            try
+            {
+                string logPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pda_browser.log");
+                System.IO.File.AppendAllText(logPath, string.Format("[{0}] {1}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), message));
+                Console.WriteLine(message);
+            }
+            catch { }
+        }
+
+        private async void InitializeWebView()
+        {
+            Log("[PDA] InitializeWebView started.");
+            try
+            {
+                webView = new WebView2
+                {
+                    Location = new Point(25, 65),
+                    Size = new Size(490, 700),
+                    BackColor = Color.Black
+                };
+
+                this.Controls.Add(webView);
+
+                // Set up environment with a local user data folder to avoid permission errors
+                string localAppDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebViewData");
+                Log("[PDA] Creating WebView2 environment in " + localAppDir);
+                var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
+                var env = await CoreWebView2Environment.CreateAsync(null, localAppDir, options);
+                Log("[PDA] WebView2 environment created. Initializing control...");
+                await webView.EnsureCoreWebView2Async(env);
+                Log("[PDA] WebView2 control initialized successfully.");
+
+                // Set user agent to a desktop agent
+                webView.CoreWebView2.Settings.UserAgent = MobileUserAgent;
+                webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
+                webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+                webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
+
+                // Emulate a mobile screen size (490x700) with touch enabled
+                try
+                {
+                    await webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setDeviceMetricsOverride", 
+                        "{\"width\":490,\"height\":700,\"deviceScaleFactor\":1,\"mobile\":true}");
+                    Log("[PDA] Mobile screen emulation enabled.");
+                }
+                catch (Exception ex)
+                {
+                    Log("[PDA Error] Failed to enable screen emulation: " + ex.ToString());
+                }
+
+                // Handle process failures
+                webView.CoreWebView2.ProcessFailed += (s, e) =>
+                {
+                    Log(string.Format("[PROCESS FAILED] Kind: {0}", e.ProcessFailedKind));
+                };
+
+                // Handle web messages (for javascript logging)
+                webView.WebMessageReceived += (s, e) =>
+                {
+                    try
+                    {
+                        string json = e.WebMessageAsJson;
+                        Log(string.Format("[JS MESSAGE] {0}", json));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log(string.Format("[JS MESSAGE ERROR] {0}", ex.Message));
+                    }
+                };
+
+                // Intercept Beforeunload dialogs to block redirects without white screen
+                webView.CoreWebView2.ScriptDialogOpening += (s, e) =>
+                {
+                    try
+                    {
+                        Log(string.Format("[PDA] Script dialog opening: {0} (Message: {1})", e.Kind, e.Message));
+                        if (e.Kind == CoreWebView2ScriptDialogKind.Beforeunload)
+                        {
+                            if (shouldBlockUnload)
+                            {
+                                // To block the navigation and stay on the current page, we DO NOT call e.Accept()
+                                shouldBlockUnload = false;
+                                isLoading = false;
+                                this.Invalidate(new Rectangle(430, 10, 100, 50));
+                                Log("[PDA] Programmatically cancelled Beforeunload dialog to block redirect.");
+                            }
+                            else
+                            {
+                                e.Accept(); // Call Accept() to allow normal navigation
+                                Log("[PDA] Allowed Beforeunload dialog for navigation.");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log("[PDA Error] ScriptDialogOpening handler failed: " + ex.ToString());
+                    }
+                };
+
+                // Block new window requests (like redirects to App Store)
+                webView.CoreWebView2.NewWindowRequested += (s, e) =>
+                {
+                    e.Handled = true; // Prevent opening in external browser for ALL links
+                    
+                    string uri = e.Uri.ToString();
+                    Log("[PDA] Blocked new window request to: " + uri);
+                    
+                    // If it's a normal web link (not App Store or redirector), navigate to it in the current webview
+                    string lowerUri = uri.ToLower();
+                    if (!lowerUri.Contains("apps.apple.com") && 
+                        !lowerUri.Contains("play.google.com") && 
+                        !lowerUri.Contains("itunes.apple.com") && 
+                        !lowerUri.Contains("onelink.me") && 
+                        !lowerUri.StartsWith("itms-apps") && 
+                        !lowerUri.Contains("tiktok.com/download") &&
+                        !lowerUri.Contains("apple.co"))
+                    {
+                        webView.CoreWebView2.Navigate(uri);
+                    }
+                };
+
+                // Inject CSS/JS to hide app download banners/popups, automatically click "Not now", and forward console messages
+                string script = @"
+                    (function() {
+                        // Scrolling and clicking state tracking to manage video pause authorization
+                        var isScrolling = false;
+                        var isUserClick = false;
+                        
+                        var scrollTimeout;
+                        function setScrolling() {
+                            isScrolling = true;
+                            clearTimeout(scrollTimeout);
+                            scrollTimeout = setTimeout(function() {
+                                isScrolling = false;
+                            }, 1000);
+                        }
+                        window.addEventListener('scroll', setScrolling, true);
+                        window.addEventListener('wheel', setScrolling, true);
+                        window.addEventListener('touchmove', setScrolling, true);
+                        
+                        var clickTimeout;
+                        window.addEventListener('mousedown', function(e) {
+                            isUserClick = true;
+                            clearTimeout(clickTimeout);
+                            clickTimeout = setTimeout(function() {
+                                isUserClick = false;
+                            }, 300);
+                        }, true);
+
+                        // Overwrite document visibility and focus APIs to prevent TikTok from pausing on blur/hidden
+                        try {
+                            Object.defineProperty(document, 'visibilityState', {
+                                get: function() { return 'visible'; }
+                            });
+                            Object.defineProperty(document, 'hidden', {
+                                get: function() { return false; }
+                            });
+                            document.hasFocus = function() {
+                                return true;
+                            };
+
+                            // Intercept and discard blur and focusout events on window and document
+                            var originalAddEventListener = window.addEventListener;
+                            window.addEventListener = function(type, listener, options) {
+                                if (type === 'blur' || type === 'focusout') {
+                                    return;
+                                }
+                                return originalAddEventListener.apply(this, arguments);
+                            };
+
+                            var originalDocAddEventListener = document.addEventListener;
+                            document.addEventListener = function(type, listener, options) {
+                                if (type === 'blur' || type === 'focusout' || type === 'visibilitychange') {
+                                    return;
+                                }
+                                return originalDocAddEventListener.apply(this, arguments);
+                            };
+
+                            // Disable window.onblur and document.onblur properties
+                            Object.defineProperty(window, 'onblur', {
+                                set: function(val) { },
+                                get: function() { return null; }
+                            });
+                            Object.defineProperty(document, 'onblur', {
+                                set: function(val) { },
+                                get: function() { return null; }
+                            });
+                        } catch(e) {
+                            console.error('Focus override failed:', e);
+                        }
+
+                        // Hook video play/pause/load/src to log stack traces and prevent unauthorized pauses
+                        try {
+                            var originalPlay = HTMLVideoElement.prototype.play;
+                            HTMLVideoElement.prototype.play = function() {
+                                this.muted = true;
+                                this.setAttribute('muted', 'true');
+                                console.log('VIDEO PLAY CALLED on: ' + (this.src || this.currentSrc) + '\nStack: ' + new Error().stack);
+                                return originalPlay.apply(this, arguments);
+                            };
+
+                            var originalPause = HTMLVideoElement.prototype.pause;
+                            HTMLVideoElement.prototype.pause = function() {
+                                var stack = new Error().stack || '';
+                                var stackLower = stack.toLowerCase();
+                                
+                                // Only block pause if it is triggered by focus loss, window blur, or visibility changes
+                                var isFocusBlurPause = stackLower.indexOf('blur') >= 0 || 
+                                                       stackLower.indexOf('focus') >= 0 || 
+                                                       stackLower.indexOf('visibility') >= 0;
+                                
+                                if (isFocusBlurPause) {
+                                    console.log('BLOCKED focus/blur pause() | Stack: ' + stack.substring(0, 200));
+                                    return;
+                                }
+                                
+                                console.log('VIDEO PAUSE ALLOWED on: ' + (this.src || this.currentSrc) + ' | Stack: ' + stack.substring(0, 150));
+                                return originalPause.apply(this, arguments);
+                            };
+
+                            var originalLoad = HTMLVideoElement.prototype.load;
+                            HTMLVideoElement.prototype.load = function() {
+                                console.log('VIDEO LOAD CALLED on: ' + (this.src || this.currentSrc) + '\nStack: ' + new Error().stack);
+                                return originalLoad.apply(this, arguments);
+                            };
+
+                            var originalSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+                            if (originalSrcDescriptor && originalSrcDescriptor.set) {
+                                Object.defineProperty(HTMLVideoElement.prototype, 'src', {
+                                    set: function(val) {
+                                        console.log('VIDEO SRC SET to: ' + val + '\nStack: ' + new Error().stack);
+                                        originalSrcDescriptor.set.call(this, val);
+                                    },
+                                    get: function() {
+                                        return originalSrcDescriptor.get.call(this);
+                                    }
+                                });
+                            }
+                        } catch(e) {
+                            console.error('Video prototype hook failed: ' + e);
+                        }
+
+                        // Intercept beforeunload to block programmatic page navigation/redirects
+                        window.addEventListener('beforeunload', function(e) {
+                            e.preventDefault();
+                            e.returnValue = 'Block';
+                            return 'Block';
+                        });
+
+                        // Drag-to-scroll implementation for desktop layout inside narrow PDA window
+                        let isDragging = false;
+                        let startY = 0;
+                        let scrollTop = 0;
+                        
+                        window.addEventListener('mousedown', function(e) {
+                            // Do not initiate drag if user clicked an interactive element (button, link, input)
+                            var tag = e.target.tagName.toLowerCase();
+                            if (tag === 'button' || tag === 'a' || tag === 'input' || tag === 'svg' || tag === 'path' ||
+                                e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) {
+                                return;
+                            }
+                            
+                            isDragging = true;
+                            startY = e.clientY;
+                            scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                            document.body.style.cursor = 'grabbing';
+                        });
+
+                        window.addEventListener('mousemove', function(e) {
+                            if (!isDragging) return;
+                            e.preventDefault();
+                            const y = e.clientY;
+                            const walk = (y - startY) * 1.5; // Drag speed multiplier
+                            window.scrollTo(0, scrollTop - walk);
+                        });
+
+                        window.addEventListener('mouseup', function() {
+                            if (isDragging) {
+                                isDragging = false;
+                                document.body.style.cursor = 'default';
+                            }
+                        });
+
+                        window.addEventListener('mouseleave', function() {
+                            if (isDragging) {
+                                isDragging = false;
+                                document.body.style.cursor = 'default';
+                            }
+                        });
+
+                        // Forward console logs to C#
+                        var originalLog = console.log;
+                        console.log = function() {
+                            var args = Array.prototype.slice.call(arguments);
+                            window.chrome.webview.postMessage(JSON.stringify({ type: 'log', msg: args.join(' ') }));
+                            if (originalLog) originalLog.apply(console, arguments);
+                        };
+                        var originalError = console.error;
+                        console.error = function() {
+                            var args = Array.prototype.slice.call(arguments);
+                            window.chrome.webview.postMessage(JSON.stringify({ type: 'error', msg: args.join(' ') }));
+                            if (originalError) originalError.apply(console, arguments);
+                        };
+                        var originalWarn = console.warn;
+                        console.warn = function() {
+                            var args = Array.prototype.slice.call(arguments);
+                            window.chrome.webview.postMessage(JSON.stringify({ type: 'warn', msg: args.join(' ') }));
+                            if (originalWarn) originalWarn.apply(console, arguments);
+                        };
+
+                        window.onerror = function(message, source, lineno, colno, error) {
+                            window.chrome.webview.postMessage(JSON.stringify({
+                                type: 'onerror',
+                                msg: message + ' at ' + source + ':' + lineno + ':' + colno
+                            }));
+                            return false;
+                        };
+
+                        function inject() {
+                            var style = document.createElement('style');
+                            style.innerHTML = `
+                                /* Hide mobile header, app open links and download prompts */
+                                header, footer,
+                                [class*=""header""], [class*=""Header""],
+                                [class*=""download""], [class*=""Download""],
+                                [class*=""banner""], [class*=""Banner""],
+                                [class*=""AppOpen""], [class*=""app-open""],
+                                [class*=""AppInstall""], [class*=""app-install""],
+                                a[href*=""apps.apple.com""], a[href*=""play.google.com""],
+                                a[href*=""onelink.me""] {
+                                    display: none !important;
+                                    width: 0 !important;
+                                    height: 0 !important;
+                                    visibility: hidden !important;
+                                    pointer-events: none !important;
+                                    opacity: 0 !important;
+                                }
+
+                                /* Position modals off-screen so they can still receive programmatic clicks */
+                                [class*=""popup""], [class*=""Popup""],
+                                [class*=""modal""], [class*=""Modal""],
+                                [class*=""tux-modal""], [class*=""tux-dialog""],
+                                [class*=""tux-popup""], [class*=""tux-toast""],
+                                [class*=""login""], [class*=""Login""],
+                                [class*=""signup""], [class*=""Signup""],
+                                [class*=""gate""], [class*=""Gate""] {
+                                    position: absolute !important;
+                                    left: -9999px !important;
+                                    top: -9999px !important;
+                                    opacity: 0 !important;
+                                    pointer-events: none !important;
+                                    width: auto !important;
+                                    height: auto !important;
+                                    visibility: visible !important;
+                                }
+
+                                /* Ensure black background for all elements */
+                                html, body, #app, main {
+                                    background-color: #000000 !important;
+                                    background: #000000 !important;
+                                }
+                            `;
+                            var container = document.head || document.documentElement;
+                            if (container) {
+                                container.appendChild(style);
+                            }
+                        }
+
+                        if (document.head || document.documentElement) {
+                            inject();
+                        } else {
+                            document.addEventListener('DOMContentLoaded', inject);
+                        }
+
+                        // Dump video player layout tree and article children to log file
+                        function dumpLayout() {
+                            setTimeout(function() {
+                                var video = document.querySelector('video');
+                                if (video) {
+                                    var path = [];
+                                    var parent = video;
+                                    while (parent && parent.tagName !== 'BODY') {
+                                        var info = parent.tagName;
+                                        if (parent.id) info += '#' + parent.id;
+                                        if (parent.className && typeof parent.className === 'string') {
+                                            info += '.' + parent.className.split(' ').join('.');
+                                        }
+                                        var rect = parent.getBoundingClientRect();
+                                        var style = window.getComputedStyle(parent);
+                                        info += ' (' + Math.round(rect.width) + 'x' + Math.round(rect.height) + ' at ' + Math.round(rect.left) + ',' + Math.round(rect.top) + ')';
+                                        info += ' { width:' + style.width + ', height:' + style.height + ', max-width:' + style.maxWidth + ', min-width:' + style.minWidth + ', margin:' + style.margin + ', padding:' + style.padding + ', position:' + style.position + ', top:' + style.top + ', display:' + style.display + ' }';
+                                        path.push(info);
+                                        parent = parent.parentElement;
+                                    }
+                                    console.log('VIDEO PATH:\n' + path.reverse().join('\n -> '));
+                                } else {
+                                    console.log('No video element found yet.');
+                                }
+
+                                var flexLayout = document.querySelector('[class*=""DivContentFlexLayout""]');
+                                if (flexLayout) {
+                                    var flexChildren = [];
+                                    for (var i = 0; i < flexLayout.children.length; i++) {
+                                        var el = flexLayout.children[i];
+                                        var rect = el.getBoundingClientRect();
+                                        var style = window.getComputedStyle(el);
+                                        var info = el.tagName;
+                                        if (el.id) info += '#' + el.id;
+                                        if (el.className && typeof el.className === 'string') {
+                                            info += '.' + el.className.split(' ').join('.');
+                                        }
+                                        info += ' (' + Math.round(rect.width) + 'x' + Math.round(rect.height) + ' at ' + Math.round(rect.left) + ',' + Math.round(rect.top) + ')';
+                                        info += ' { width:' + style.width + ', height:' + style.height + ', display:' + style.display + ', position:' + style.position + ' }';
+                                        flexChildren.push(info);
+                                    }
+                                    console.log('FLEX LAYOUT CHILDREN:\n' + flexChildren.join('\n'));
+                                }
+                            }, 3000);
+                        }
+                        if (document.readyState === 'complete') {
+                            dumpLayout();
+                        } else {
+                            window.addEventListener('load', dumpLayout);
+                        }
+
+                        function instrumentVideo(video) {
+                            if (video.__instrumented) return;
+                            video.__instrumented = true;
+                            console.log('Instrumenting video element: ' + (video.src || video.currentSrc));
+                            
+                            // Force muted to true to guarantee autoplay permissions
+                            video.muted = true;
+                            video.setAttribute('muted', 'true');
+                            
+                            var events = ['play', 'playing', 'pause', 'waiting', 'error', 'emptied', 'loadstart', 'loadedmetadata', 'suspend', 'abort', 'stalled'];
+                            events.forEach(function(ev) {
+                                video.addEventListener(ev, function() {
+                                    console.log('VIDEO EVENT: ' + ev + ' on: ' + (video.src || video.currentSrc) + ' | Paused: ' + video.paused + ' | Muted: ' + video.muted + ' | ReadyState: ' + video.readyState);
+                                });
+                            });
+                        }
+
+                        setInterval(function() {
+                            // Safely instrument all video elements and enforce mute for autoplay
+                            document.querySelectorAll('video').forEach(instrumentVideo);
+
+                            // Automatically hide app store link wrappers safely (only 1 level parent)
+                            var appLinks = document.querySelectorAll('a[href*=""apps.apple.com""], a[href*=""play.google.com""], a[href*=""onelink.me""]');
+                            appLinks.forEach(function(link) {
+                                link.style.setProperty('display', 'none', 'important');
+                                var parent = link.parentElement;
+                                if (parent) {
+                                    parent.style.setProperty('display', 'none', 'important');
+                                }
+                            });
+
+                            // Click 'Not now' buttons automatically (only leaf/specific small elements to avoid clicking wrappers/video containers)
+                            var elements = document.querySelectorAll('button, a, [role=""button""], div, span');
+                            var targets = ['not now', 'не зараз', 'не сейчас', 'пізніше', 'позже', 'потім'];
+                            elements.forEach(function(el) {
+                                var text = (el.innerText || el.textContent || '').trim().toLowerCase();
+                                if (targets.indexOf(text) >= 0) {
+                                    var isInteractive = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button';
+                                    var isLeaf = el.children.length === 0;
+                                    if (isInteractive || isLeaf) {
+                                        console.log('AUTO-CLICKING element:', el.tagName, el.className, 'Text:', text);
+                                        el.click();
+                                    }
+                                }
+                            });
+
+                            // Auto-click close buttons to dismiss login/signup/app download popups
+                            var closeButtons = document.querySelectorAll([
+                                '[data-e2e=""close-button""]',
+                                '[aria-label=""Close""]',
+                                '[aria-label=""close""]',
+                                '[class*=""close-btn""]',
+                                '[class*=""CloseBtn""]',
+                                '[class*=""closeIcon""]',
+                                '[class*=""CloseIcon""]',
+                                '[class*=""close-icon""]',
+                                '[class*=""close_icon""]',
+                                '.tux-Modal-close',
+                                '.tux-Dialog-close'
+                            ].join(','));
+                            
+                            closeButtons.forEach(function(btn) {
+                                if (btn && typeof btn.click === 'function') {
+                                    console.log('AUTO-CLICKING close button: ' + btn.className);
+                                    btn.click();
+                                }
+                            });
+
+                            // Auto-play the active video if it is paused (not user-clicked, not scrolling, not ended)
+                            var activeVideo = null;
+                            document.querySelectorAll('video').forEach(function(video) {
+                                var rect = video.getBoundingClientRect();
+                                if (rect.top >= -200 && rect.top <= 200) {
+                                    activeVideo = video;
+                                }
+                            });
+
+                            if (activeVideo && activeVideo.paused && !isUserClick && !isScrolling && !activeVideo.ended) {
+                                console.log('AUTO-PLAYING active video which was paused: ' + (activeVideo.src || activeVideo.currentSrc));
+                                activeVideo.play().catch(function(err) {
+                                    console.error('Auto-play failed: ' + err.message);
+                                });
+                            }
+
+                            // Enforce scrollability on top-level body and html elements only
+                            if (document.body) {
+                                document.body.style.setProperty('overflow', 'auto', 'important');
+                                document.body.style.setProperty('position', 'static', 'important');
+                            }
+                            if (document.documentElement) {
+                                document.documentElement.style.setProperty('overflow', 'auto', 'important');
+                            }
+                        }, 500);
+                    })();
+                ";
+                await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script);
+
+
+                webView.NavigationStarting += (s, e) => 
+                { 
+                    isLoading = true; 
+                    this.Invalidate(new Rectangle(430, 10, 100, 50)); 
+                    
+                    string uri = e.Uri.ToString();
+                    string lowerUri = uri.ToLower();
+                    Log("[PDA] Navigation starting: " + uri);
+                    
+                    bool isAppStoreOrDownload = lowerUri.Contains("apps.apple.com") || 
+                                                lowerUri.Contains("play.google.com") || 
+                                                lowerUri.Contains("itunes.apple.com") || 
+                                                lowerUri.Contains("onelink.me") || 
+                                                lowerUri.Contains("tiktok.com/download") ||
+                                                lowerUri.Contains("apple.co");
+                                                
+                    bool isCustomProtocol = !lowerUri.StartsWith("http://") && !lowerUri.StartsWith("https://");
+                    
+                    if (isAppStoreOrDownload || isCustomProtocol || lowerUri.StartsWith("itms-apps") || lowerUri.Contains("market://"))
+                    {
+                        if (isCustomProtocol || lowerUri.StartsWith("itms-apps"))
+                        {
+                            e.Cancel = true; // Safe to cancel custom protocols immediately without white screen
+                            Log("[PDA] Instantly blocked custom protocol: " + uri);
+                        }
+                        else
+                        {
+                            shouldBlockUnload = true; // Let it trigger beforeunload so we can block it without a white screen
+                            Log("[PDA] Redirect detected. Enabled BeforeUnload interception for: " + uri);
+                        }
+                    }
+                    else
+                    {
+                        shouldBlockUnload = false;
+                    }
+                };
+
+                webView.NavigationCompleted += (s, e) => 
+                { 
+                    isLoading = false; 
+                    this.Invalidate(new Rectangle(430, 10, 100, 50)); 
+                    Log(string.Format("[PDA] Navigation completed: {0} (Success: {1}, Error: {2})", webView.Source, e.IsSuccess, e.WebErrorStatus));
+                };
+
+                webView.Source = new Uri(InitialUrl);
+            }
+            catch (Exception ex)
+            {
+                Log("[PDA Error] Failed to initialize WebView2: " + ex.ToString());
+                MessageBox.Show("Failed to initialize WebView2: " + ex.Message + "\nMake sure Microsoft Edge WebView2 Runtime is installed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Application.Exit();
+            }
+        }
+
+        private void InitializeLedTimer()
+        {
+            ledTimer = new Timer
+            {
+                Interval = 500
+            };
+            ledTimer.Tick += (s, e) =>
+            {
+                ledState = !ledState;
+                // Invalidate the LED area to repaint
+                this.Invalidate(new Rectangle(25, 15, 30, 30));
+            };
+            ledTimer.Start();
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+
+            // Drag window if clicked on the top or side bezels
+            if (e.Button == MouseButtons.Left)
+            {
+                if (e.Y < 65 || e.Y > 765 || e.X < 25 || e.X > 515)
+                {
+                    // Check if clicked inside a button bounds
+                    foreach (var button in buttons)
+                    {
+                        if (button.Bounds.Contains(e.Location))
+                        {
+                            button.Action();
+                            return;
+                        }
+                    }
+
+                    ReleaseCapture();
+                    SendMessage(Handle, 0xA1, 0x2, 0);
+                }
+            }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            mousePos = e.Location;
+
+            bool needsRepaint = false;
+            foreach (var button in buttons)
+            {
+                bool hovered = button.Bounds.Contains(mousePos);
+                if (hovered != button.IsHovered)
+                {
+                    button.IsHovered = hovered;
+                    needsRepaint = true;
+                }
+            }
+
+            if (needsRepaint)
+            {
+                this.Invalidate(new Rectangle(40, 770, 460, 90));
+            }
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            bool needsRepaint = false;
+            foreach (var button in buttons)
+            {
+                if (button.IsHovered)
+                {
+                    button.IsHovered = false;
+                    needsRepaint = true;
+                }
+            }
+            if (needsRepaint)
+            {
+                this.Invalidate(new Rectangle(40, 770, 460, 90));
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // --- BEZEL BACKGROUND ---
+            // Draw dark metallic border gradient
+            using (LinearGradientBrush brush = new LinearGradientBrush(this.ClientRectangle, 
+                Color.FromArgb(40, 44, 52), Color.FromArgb(20, 22, 26), 45F))
+            {
+                g.FillRectangle(brush, this.ClientRectangle);
+            }
+
+            // Draw inner screen casing border
+            using (Pen pen = new Pen(Color.FromArgb(12, 13, 15), 3))
+            {
+                g.DrawRectangle(pen, 23, 63, 494, 704);
+            }
+
+            // Outer border line
+            using (Pen pen = new Pen(Color.FromArgb(60, 65, 75), 2))
+            {
+                // Top/sides outer highlights
+                g.DrawArc(pen, 1, 1, 30, 30, 180, 90);
+                g.DrawLine(pen, 16, 1, Width - 16, 1);
+                g.DrawArc(pen, Width - 31, 1, 30, 30, 270, 90);
+                g.DrawLine(pen, 1, 16, 1, Height - 16);
+                g.DrawLine(pen, Width - 1, 16, Width - 1, Height - 16);
+            }
+
+            // --- SPEAKER GRILLE ---
+            using (Pen pen = new Pen(Color.FromArgb(15, 15, 15), 2))
+            {
+                for (int i = 0; i < 7; i++)
+                {
+                    int xStart = 200 + i * 20;
+                    g.DrawLine(pen, xStart, 28, xStart + 10, 28);
+                    g.DrawLine(pen, xStart - 5, 34, xStart + 5, 34);
+                }
+            }
+
+            // --- LED INDICATOR ---
+            // Active Blinking LED
+            Color ledColor = ledState ? Color.FromArgb(0, 255, 180) : Color.FromArgb(0, 60, 45);
+            using (SolidBrush brush = new SolidBrush(ledColor))
+            {
+                g.FillEllipse(brush, 35, 23, 14, 14);
+            }
+            // Glow overlay if LED is active
+            if (ledState)
+            {
+                using (PathGradientBrush rgb = CreateRadialBrush(new PointF(42, 30), 12, Color.FromArgb(100, 0, 255, 180), Color.Transparent))
+                {
+                    ColorBlend cb = new ColorBlend(3);
+                    cb.Colors = new Color[] { Color.FromArgb(100, 0, 255, 180), Color.FromArgb(30, 0, 255, 180), Color.Transparent };
+                    cb.Positions = new float[] { 0.0f, 0.4f, 1.0f };
+                    rgb.InterpolationColors = cb;
+                    g.FillEllipse(rgb, 27, 15, 30, 30);
+                }
+            }
+            // Static Power LED
+            using (SolidBrush brush = new SolidBrush(Color.FromArgb(200, 30, 30)))
+            {
+                g.FillEllipse(brush, 60, 23, 8, 8);
+            }
+
+            // --- SYSTEM TEXT ---
+            using (Font font = new Font("Courier New", 9, FontStyle.Bold))
+            using (SolidBrush brush = new SolidBrush(Color.FromArgb(130, 140, 150)))
+            {
+                g.DrawString("EUROPA-OS v4.11", font, brush, 80, 21);
+            }
+
+            // Loading status text
+            if (isLoading)
+            {
+                using (Font font = new Font("Courier New", 8, FontStyle.Bold))
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(0, 255, 220)))
+                {
+                    g.DrawString("[NET SYNCING]", font, brush, 410, 22);
+                }
+            }
+            else
+            {
+                using (Font font = new Font("Courier New", 8, FontStyle.Bold))
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(100, 110, 120)))
+                {
+                    g.DrawString("[SIGNAL OK]", font, brush, 420, 22);
+                }
+            }
+
+            // --- DRAW BUTTONS ---
+            foreach (var button in buttons)
+            {
+                // Draw button border and fill
+                Color fill = button.IsHovered 
+                    ? Color.FromArgb(45, 48, 56) 
+                    : Color.FromArgb(30, 32, 38);
+                
+                using (SolidBrush brush = new SolidBrush(fill))
+                {
+                    g.FillRectangle(brush, button.Bounds);
+                }
+
+                Color border = button.IsHovered ? button.GlowColor : button.BorderColor;
+                using (Pen pen = new Pen(border, button.IsHovered ? 2 : 1))
+                {
+                    g.DrawRectangle(pen, button.Bounds);
+                }
+
+                // Draw button text
+                using (Font font = new Font("Courier New", 9, FontStyle.Bold))
+                using (SolidBrush brush = new SolidBrush(button.IsHovered ? button.GlowColor : Color.FromArgb(180, 190, 200)))
+                {
+                    SizeF textSize = g.MeasureString(button.Label, font);
+                    float xText = button.Bounds.X + (button.Bounds.Width - textSize.Width) / 2;
+                    float yText = button.Bounds.Y + (button.Bounds.Height - textSize.Height) / 2;
+                    g.DrawString(button.Label, font, brush, xText, yText);
+                }
+
+                // Draw neon glow for hovered button
+                if (button.IsHovered)
+                {
+                    using (Pen pen = new Pen(Color.FromArgb(50, button.GlowColor), 4))
+                    {
+                        var expanded = button.Bounds;
+                        expanded.Inflate(2, 2);
+                        g.DrawRectangle(pen, expanded);
+                    }
+                }
+            }
+        }
+        private static PathGradientBrush CreateRadialBrush(PointF center, float radius, Color centerColor, Color surroundColor)
+        {
+            GraphicsPath path = new GraphicsPath();
+            path.AddEllipse(center.X - radius, center.Y - radius, radius * 2, radius * 2);
+            PathGradientBrush brush = new PathGradientBrush(path);
+            brush.CenterPoint = center;
+            brush.CenterColor = centerColor;
+            brush.SurroundColors = new Color[] { surroundColor };
+            return brush;
+        }
+    }
+
+    public class PdaButton
+    {
+        public Rectangle Bounds { get; set; }
+        public string Label { get; set; }
+        public Color BorderColor { get; set; }
+        public Color GlowColor { get; set; }
+        public Action Action { get; set; }
+        public bool IsHovered { get; set; }
+    }
+
+    static class Program
+    {
+        [STAThread]
+        static void Main(string[] args)
+        {
+            Console.WriteLine("[PDA] Main entry point hit.");
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            IntPtr parent = IntPtr.Zero;
+            long longValue;
+            if (args.Length > 0 && long.TryParse(args[0], out longValue))
+            {
+                parent = new IntPtr(longValue);
+                Console.WriteLine("[PDA] Parent window handle: " + parent);
+            }
+
+            Console.WriteLine("[PDA] Running application message loop...");
+            Application.Run(new PdaBrowser(parent));
+            Console.WriteLine("[PDA] Application message loop exited.");
+        }
+    }
+}
