@@ -4,7 +4,7 @@
     <PreferredContainer primary="crewcab" secondary="wreckcab" spawnprobability="0.5" />
     <Fabricate suitablefabricators="fabricator" category="Equipment" amount="1" requiredtime="10" requiresrecipe="false">
       <Item identifier="fpgacircuit" />
-      <Item identifier="steelbar" />
+      <Item identifier="steel" />
     </Fabricate>
     <Deconstruct time="10">
       <Item identifier="fpgacircuit" />
