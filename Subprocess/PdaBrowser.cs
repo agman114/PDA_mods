@@ -106,7 +106,7 @@ namespace TikTokPda
             {
                 new PdaButton
                 {
-                    Bounds = new Rectangle(50, 790, 80, 45),
+                    Bounds = new Rectangle(30, 790, 75, 45),
                     Label = "BACK",
                     BorderColor = Color.FromArgb(80, 85, 95),
                     GlowColor = Color.FromArgb(120, 130, 150),
@@ -114,7 +114,7 @@ namespace TikTokPda
                 },
                 new PdaButton
                 {
-                    Bounds = new Rectangle(155, 785, 100, 55), // Home is slightly larger
+                    Bounds = new Rectangle(120, 785, 85, 55), // Home is slightly larger
                     Label = "HOME",
                     BorderColor = Color.FromArgb(0, 180, 160),
                     GlowColor = Color.FromArgb(0, 255, 220),
@@ -122,7 +122,15 @@ namespace TikTokPda
                 },
                 new PdaButton
                 {
-                    Bounds = new Rectangle(280, 790, 80, 45),
+                    Bounds = new Rectangle(220, 790, 85, 45),
+                    Label = "LOGIN",
+                    BorderColor = Color.FromArgb(200, 160, 0),
+                    GlowColor = Color.FromArgb(255, 210, 0),
+                    Action = () => { if (webView != null) webView.Source = new Uri("https://www.tiktok.com/login"); }
+                },
+                new PdaButton
+                {
+                    Bounds = new Rectangle(320, 790, 85, 45),
                     Label = "RELOAD",
                     BorderColor = Color.FromArgb(80, 85, 95),
                     GlowColor = Color.FromArgb(120, 130, 150),
@@ -130,7 +138,7 @@ namespace TikTokPda
                 },
                 new PdaButton
                 {
-                    Bounds = new Rectangle(390, 790, 90, 45),
+                    Bounds = new Rectangle(420, 790, 90, 45),
                     Label = "SHUTDOWN",
                     BorderColor = Color.FromArgb(180, 40, 40),
                     GlowColor = Color.FromArgb(255, 50, 50),
@@ -1013,7 +1021,7 @@ namespace TikTokPda
 
             if (needsRepaint)
             {
-                this.Invalidate(new Rectangle(40, 770, 460, 90));
+                this.Invalidate(new Rectangle(20, 770, 500, 90));
             }
         }
 
@@ -1031,7 +1039,7 @@ namespace TikTokPda
             }
             if (needsRepaint)
             {
-                this.Invalidate(new Rectangle(40, 770, 460, 90));
+                this.Invalidate(new Rectangle(20, 770, 500, 90));
             }
         }
 
