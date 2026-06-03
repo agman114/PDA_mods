@@ -410,8 +410,6 @@ namespace TikTokPda
                         try {
                             var originalPlay = HTMLVideoElement.prototype.play;
                             HTMLVideoElement.prototype.play = function() {
-                                this.muted = true;
-                                this.setAttribute('muted', 'true');
                                 console.log('VIDEO PLAY CALLED on: ' + (this.src || this.currentSrc) + '\nStack: ' + new Error().stack);
                                 return originalPlay.apply(this, arguments);
                             };
@@ -554,14 +552,15 @@ namespace TikTokPda
                                     opacity: 0 !important;
                                 }
 
-                                /* Position modals off-screen so they can still receive programmatic clicks */
-                                [class*=""popup""], [class*=""Popup""],
-                                [class*=""modal""], [class*=""Modal""],
-                                [class*=""tux-modal""], [class*=""tux-dialog""],
-                                [class*=""tux-popup""], [class*=""tux-toast""],
-                                [class*=""login""], [class*=""Login""],
-                                [class*=""signup""], [class*=""Signup""],
-                                [class*=""gate""], [class*=""Gate""] {
+                                /* Position modals off-screen so they can still receive programmatic clicks, 
+                                   but keep them visible if they contain input elements (login/signup forms) */
+                                [class*=""popup""]:not(:has(input)), [class*=""Popup""]:not(:has(input)),
+                                [class*=""modal""]:not(:has(input)), [class*=""Modal""]:not(:has(input)),
+                                [class*=""tux-modal""]:not(:has(input)), [class*=""tux-dialog""]:not(:has(input)),
+                                [class*=""tux-popup""]:not(:has(input)), [class*=""tux-toast""],
+                                [class*=""login""]:not(:has(input)), [class*=""Login""]:not(:has(input)),
+                                [class*=""signup""]:not(:has(input)), [class*=""Signup""]:not(:has(input)),
+                                [class*=""gate""]:not(:has(input)), [class*=""Gate""]:not(:has(input)) {
                                     position: absolute !important;
                                     left: -9999px !important;
                                     top: -9999px !important;
@@ -808,10 +807,6 @@ namespace TikTokPda
                             video.__instrumented = true;
                             console.log('Instrumenting video element: ' + (video.src || video.currentSrc));
                             
-                            // Force muted to true to guarantee autoplay permissions
-                            video.muted = true;
-                            video.setAttribute('muted', 'true');
-                            
                             var events = ['play', 'playing', 'pause', 'waiting', 'error', 'emptied', 'loadstart', 'loadedmetadata', 'suspend', 'abort', 'stalled'];
                             events.forEach(function(ev) {
                                 video.addEventListener(ev, function() {
@@ -865,6 +860,11 @@ namespace TikTokPda
                             ].join(','));
                             
                             closeButtons.forEach(function(btn) {
+                                // Do not auto-click close if the container modal contains input elements (login form)
+                                var parentModal = btn.closest('[class*=""modal""], [class*=""Modal""], [class*=""dialog""], [class*=""Dialog""], [class*=""popup""], [class*=""Popup""]');
+                                if (parentModal && parentModal.querySelector('input')) {
+                                    return;
+                                }
                                 if (btn && typeof btn.click === 'function') {
                                     console.log('AUTO-CLICKING close button: ' + btn.className);
                                     btn.click();
