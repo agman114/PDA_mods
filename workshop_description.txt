@@ -1,6 +1,12 @@
 [h1]📶 TikTok PDA: Earth Signal Established![/h1]
 
 [h2]📖 Lore / Лор[/h2]
+[i]Log entry. Day 482 on Europa.[/i]
+"After months of calibrating the quantum-resonance receivers, we finally managed to pierce through the multi-kilometer thick ice shelf and establish a stable signal from Earth.
+We hoped for orders from the Coalition or a word from our loved ones.
+Instead, we caught... TikTok.
+Well, at least the crew won't get as bored dying in the depths of the Europan ridge!"
+
 [i]Запись в бортовом журнале. День 482-й на Европе.[/i]
 «После долгих месяцев калибровки квантово-резонансных приемников нам наконец удалось пробить многокилометровый слой льда и поймать стабильный сигнал с Земли. 
 Мы надеялись получить указания от Коалиции или весточку от близких. 
@@ -11,24 +17,24 @@
 
 [h2]🎮 Features / Особенности мода[/h2]
 [list]
-[*] [b]Полноценный КПК (Handheld PDA)[/b]: Уникальный предмет, который можно держать в руках и использовать прямо во время плавания.
-[*] [b]Интерактивный плеер[/b]: Смотрите ленту рекомендаций, авторизуйтесь под своим аккаунтом, лайкайте и комментируйте любимые видео.
-[*] [b]Сохранение настроек звука[/b]: Громкость и состояние звука (muted/unmuted) не сбрасываются при переключении роликов!
-[*] [b]Вход через Google[/b]: Полностью исправлен белый экран при авторизации через Google-аккаунт.
-[*] [b]Стильный sci-fi дизайн[/b]: Корпус КПК выполнен в духе Европы-ОС с анимированными неоновыми кнопками, подсветкой и датчиком сигнала.
+[*] [b]Handheld PDA / Полноценный КПК[/b]: A unique in-game item that you can hold and interact with while navigating. / Уникальный предмет, который можно держать в руках и использовать прямо во время плавания.
+[*] [b]Fully Interactive Player / Интерактивный плеер[/b]: Watch the recommendation feed, log in to your account, like and comment on your favorite videos. / Смотрите ленту рекомендаций, авторизуйтесь под своим аккаунтом, лайкайте и комментируйте любимые видео.
+[*] [b]Persistent Audio State / Сохранение звука[/b]: Volume and mute configurations do not reset when switching videos! / Громкость и состояние звука (muted/unmuted) не сбрасываются при переключении роликов!
+[*] [b]Google OAuth Fix / Вход через Google[/b]: Fully fixed the white screen issue when logging in via Google account. / Полностью исправлен белый экран при авторизации через Google-аккаунт.
+[*] [b]Sleek Sci-Fi Design / Стильный sci-fi дизайн[/b]: The PDA casing is designed in the style of Europa-OS with animated neon buttons, glowing indicator panels, and signal diagnostics. / Корпус КПК выполнен в духе Европы-ОС с анимированными неоновыми кнопками, подсветкой и датчиком сигнала.
 [/list]
 
 [hr][/hr]
 
 [h2]🔧 How to Use / Как использовать[/h2]
 [list]
-[*] Найдите или скрафтите [b]TikTok PDA[/b] на фабрикаторе.
-[*] Возьмите его в руки.
-[*] Нажмите [b]ЛКМ / ПКМ[/b] (или клавишу взаимодействия), чтобы открыть экран КПК.
-[*] Листайте ленту и наслаждайтесь!
+[*] Find or craft the [b]TikTok PDA[/b] at any fabricator. / Найдите или скрафтите [b]TikTok PDA[/b] на фабрикаторе.
+[*] Equip it in your hands. / Возьмите его в руки.
+[*] Press [b]LMB / RMB[/b] (or the interaction key) to open the screen. / Нажмите [b]ЛКМ / ПКМ[/b] (или клавишу взаимодействия), чтобы открыть экран КПК.
+[*] Scroll through the feed and enjoy! / Листайте ленту и наслаждайтесь!
 [/list]
 
 [hr][/hr]
 
 [h2]🛠️ Tech Details / Технические детали[/h2]
-Мод работает на базе встроенного WebView2. Все элементы интерфейса оптимизированы под разрешение экрана КПК, а лишние баннеры скачивания приложений автоматически скрываются.
+The mod operates using built-in WebView2. All user interface elements are scaled specifically for the PDA screen resolution, and annoying app store banners are automatically hidden. / Мод работает на базе встроенного WebView2. Все элементы интерфейса оптимизированы под разрешение экрана КПК, а лишние баннеры скачивания приложений автоматически скрываются.
