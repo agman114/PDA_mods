@@ -542,211 +542,257 @@ namespace TikTokPda
                         function inject() {
                             var style = document.createElement('style');
                             style.innerHTML = `
-                                /* Hide header, footer, sidebars, app download banners/popups, etc. */
-                                header, footer,
-                                [class*=""header""], [class*=""Header""],
-                                [class*=""Sidebar""], [class*=""sidebar""],
-                                [class*=""download""], [class*=""Download""],
-                                [class*=""banner""], [class*=""Banner""],
-                                [class*=""AppOpen""], [class*=""app-open""],
-                                [class*=""AppInstall""], [class*=""app-install""],
-                                a[href*=""apps.apple.com""], a[href*=""play.google.com""],
-                                a[href*=""onelink.me""] {
-                                    display: none !important;
-                                    width: 0 !important;
-                                    height: 0 !important;
-                                    visibility: hidden !important;
-                                    pointer-events: none !important;
-                                    opacity: 0 !important;
-                                }
+                        function inject() {
+                            var isLoginOrSignup = window.location.href.indexOf('/login') >= 0 || window.location.href.indexOf('/signup') >= 0;
+                            var style = document.createElement('style');
+                            if (isLoginOrSignup) {
+                                style.innerHTML = `
+                                    html, body, #app, main {
+                                        background-color: #000000 !important;
+                                        background: #000000 !important;
+                                    }
+                                    /* Force top-level containers to have a strict width of 490px and height 700px */
+                                    html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
+                                        width: 490px !important;
+                                        height: 700px !important;
+                                        max-width: 490px !important;
+                                        max-height: 700px !important;
+                                        margin: 0 auto !important;
+                                        padding: 0 !important;
+                                        position: relative !important;
+                                        display: block !important;
+                                        overflow-y: auto !important;
+                                    }
+                                    /* Keep login inputs, form card visible and centered */
+                                    [class*=""DivLoginContainer""], [class*=""DivGateContainer""], [class*=""login""], [class*=""Login""], [class*=""signup""], [class*=""Signup""] {
+                                        width: 100% !important;
+                                        max-width: 490px !important;
+                                        margin: 0 auto !important;
+                                        display: block !important;
+                                        position: relative !important;
+                                        opacity: 1 !important;
+                                        visibility: visible !important;
+                                        pointer-events: auto !important;
+                                    }
+                                    /* Hide app download banners and header/footer */
+                                    header, [class*=""header""], [class*=""Header""],
+                                    [class*=""download""], [class*=""Download""], [class*=""banner""], [class*=""Banner""],
+                                    a[href*=""apps.apple.com""], a[href*=""play.google.com""], a[href*=""onelink.me""] {
+                                        display: none !important;
+                                    }
+                                    /* Hide scrollbars */
+                                    html::-webkit-scrollbar, body::-webkit-scrollbar {
+                                        display: none !important;
+                                    }
+                                `;
+                            } else {
+                                style.innerHTML = `
+                                    /* Hide header, footer, sidebars, app download banners/popups, etc. */
+                                    header, footer,
+                                    [class*=""header""], [class*=""Header""],
+                                    [class*=""Sidebar""], [class*=""sidebar""],
+                                    [class*=""download""], [class*=""Download""],
+                                    [class*=""banner""], [class*=""Banner""],
+                                    [class*=""AppOpen""], [class*=""app-open""],
+                                    [class*=""AppInstall""], [class*=""app-install""],
+                                    a[href*=""apps.apple.com""], a[href*=""play.google.com""],
+                                    a[href*=""onelink.me""] {
+                                        display: none !important;
+                                        width: 0 !important;
+                                        height: 0 !important;
+                                        visibility: hidden !important;
+                                        pointer-events: none !important;
+                                        opacity: 0 !important;
+                                    }
 
-                                /* Position modals off-screen so they can still receive programmatic clicks, 
-                                   but keep them visible if they contain input elements (login/signup forms) */
-                                [class*=""popup""]:not(:has(input)), [class*=""Popup""]:not(:has(input)),
-                                [class*=""modal""]:not(:has(input)), [class*=""Modal""]:not(:has(input)),
-                                [class*=""tux-modal""]:not(:has(input)), [class*=""tux-dialog""]:not(:has(input)),
-                                [class*=""tux-popup""]:not(:has(input)), [class*=""tux-toast""],
-                                [class*=""login""]:not(:has(input)), [class*=""Login""]:not(:has(input)),
-                                [class*=""signup""]:not(:has(input)), [class*=""Signup""]:not(:has(input)),
-                                [class*=""gate""]:not(:has(input)), [class*=""Gate""]:not(:has(input)) {
-                                    position: absolute !important;
-                                    left: -9999px !important;
-                                    top: -9999px !important;
-                                    opacity: 0 !important;
-                                    pointer-events: none !important;
-                                    width: auto !important;
-                                    height: auto !important;
-                                    visibility: visible !important;
-                                }
+                                    /* Position modals off-screen so they can still receive programmatic clicks, 
+                                       but keep them visible if they contain input elements (login/signup forms) */
+                                    [class*=""popup""]:not(:has(input)), [class*=""Popup""]:not(:has(input)),
+                                    [class*=""modal""]:not(:has(input)), [class*=""Modal""]:not(:has(input)),
+                                    [class*=""tux-modal""]:not(:has(input)), [class*=""tux-dialog""]:not(:has(input)),
+                                    [class*=""tux-popup""]:not(:has(input)), [class*=""tux-toast""],
+                                    [class*=""login""]:not(:has(input)), [class*=""Login""]:not(:has(input)),
+                                    [class*=""signup""]:not(:has(input)), [class*=""Signup""]:not(:has(input)),
+                                    [class*=""gate""]:not(:has(input)), [class*=""Gate""]:not(:has(input)) {
+                                        position: absolute !important;
+                                        left: -9999px !important;
+                                        top: -9999px !important;
+                                        opacity: 0 !important;
+                                        pointer-events: none !important;
+                                        width: auto !important;
+                                        height: auto !important;
+                                        visibility: visible !important;
+                                    }
 
-                                /* Ensure black background for all elements */
-                                html, body, #app, main, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
-                                    background-color: #000000 !important;
-                                    background: #000000 !important;
-                                }
+                                    /* Ensure black background for all elements */
+                                    html, body, #app, main, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
+                                        background-color: #000000 !important;
+                                        background: #000000 !important;
+                                    }
 
-                                /* Force top-level containers to have a strict width of 490px */
-                                html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
-                                    width: 490px !important;
-                                    max-width: 490px !important;
-                                    min-width: 490px !important;
-                                    margin: 0 auto !important;
-                                    padding: 0 !important;
-                                    position: relative !important;
-                                    display: block !important;
-                                }
+                                    /* Force top-level containers to have a strict width of 490px */
+                                    html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
+                                        width: 490px !important;
+                                        max-width: 490px !important;
+                                        min-width: 490px !important;
+                                        margin: 0 auto !important;
+                                        padding: 0 !important;
+                                        position: relative !important;
+                                        display: block !important;
+                                    }
 
-                                /* Force article to fill exactly 700px vertically and 490px horizontally */
-                                [class*=""ArticleItemContainer""] {
-                                    height: 700px !important;
-                                    min-height: 700px !important;
-                                    max-height: 700px !important;
-                                    width: 490px !important;
-                                    max-width: 490px !important;
-                                    min-width: 490px !important;
-                                    margin: 0 auto !important;
-                                    padding: 0 !important;
-                                    position: relative !important;
-                                    display: block !important;
-                                }
+                                    /* Force article to fill exactly 700px vertically and 490px horizontally */
+                                    [class*=""ArticleItemContainer""] {
+                                        height: 700px !important;
+                                        min-height: 700px !important;
+                                        max-height: 700px !important;
+                                        width: 490px !important;
+                                        max-width: 490px !important;
+                                        min-width: 490px !important;
+                                        margin: 0 auto !important;
+                                        padding: 0 !important;
+                                        position: relative !important;
+                                        display: block !important;
+                                    }
 
-                                /* Force flex layout to be absolute full-screen inside article */
-                                [class*=""DivContentFlexLayout""] {
-                                    width: 490px !important;
-                                    height: 700px !important;
-                                    max-width: 490px !important;
-                                    max-height: 700px !important;
-                                    position: absolute !important;
-                                    top: 0 !important;
-                                    left: 0 !important;
-                                    margin: 0 !important;
-                                    padding: 0 !important;
-                                    display: block !important;
-                                }
+                                    /* Force flex layout to be absolute full-screen inside article */
+                                    [class*=""DivContentFlexLayout""] {
+                                        width: 490px !important;
+                                        height: 700px !important;
+                                        max-width: 490px !important;
+                                        max-height: 700px !important;
+                                        position: absolute !important;
+                                        top: 0 !important;
+                                        left: 0 !important;
+                                        margin: 0 !important;
+                                        padding: 0 !important;
+                                        display: block !important;
+                                    }
 
-                                /* Force media card (video player wrapper) to occupy the entire viewport */
-                                [class*=""SectionMediaCardContainer""] {
-                                    width: 490px !important;
-                                    height: 700px !important;
-                                    max-width: 490px !important;
-                                    max-height: 700px !important;
-                                    min-width: 490px !important;
-                                    min-height: 700px !important;
-                                    position: absolute !important;
-                                    top: 0 !important;
-                                    left: 0 !important;
-                                    margin: 0 !important;
-                                    padding: 0 !important;
-                                }
+                                    /* Force media card (video player wrapper) to occupy the entire viewport */
+                                    [class*=""SectionMediaCardContainer""] {
+                                        width: 490px !important;
+                                        height: 700px !important;
+                                        max-width: 490px !important;
+                                        max-height: 700px !important;
+                                        min-width: 490px !important;
+                                        min-height: 700px !important;
+                                        position: absolute !important;
+                                        top: 0 !important;
+                                        left: 0 !important;
+                                        margin: 0 !important;
+                                        padding: 0 !important;
+                                    }
 
-                                /* Force video element to fit nicely inside the container */
-                                [class*=""SectionMediaCardContainer""] video {
-                                    width: 100% !important;
-                                    height: 100% !important;
-                                    object-fit: contain !important;
-                                }
+                                    /* Force video element to fit nicely inside the container */
+                                    [class*=""SectionMediaCardContainer""] video {
+                                        width: 100% !important;
+                                        height: 100% !important;
+                                        object-fit: contain !important;
+                                    }
 
-                                /* Reposition interaction action buttons to bottom-right corner over the video player with Glassmorphism and Neon Cyan glow */
-                                [class*=""SectionActionBarContainer""] {
-                                    position: absolute !important;
-                                    bottom: 70px !important;
-                                    right: 10px !important;
-                                    z-index: 999 !important;
-                                    background: rgba(10, 15, 20, 0.65) !important;
-                                    backdrop-filter: blur(10px) !important;
-                                    -webkit-backdrop-filter: blur(10px) !important;
-                                    border: 1px solid rgba(0, 255, 220, 0.3) !important;
-                                    border-radius: 20px !important;
-                                    padding: 12px 6px !important;
-                                    box-shadow: 0 0 15px rgba(0, 255, 220, 0.25) !important;
-                                    display: flex !important;
-                                    flex-direction: column !important;
-                                    align-items: center !important;
-                                    gap: 10px !important;
-                                }
+                                    /* Reposition interaction action buttons to bottom-right corner over the video player with Glassmorphism and Neon Cyan glow */
+                                    [class*=""SectionActionBarContainer""] {
+                                        position: absolute !important;
+                                        bottom: 70px !important;
+                                        right: 10px !important;
+                                        z-index: 999 !important;
+                                        background: rgba(10, 15, 20, 0.65) !important;
+                                        backdrop-filter: blur(10px) !important;
+                                        -webkit-backdrop-filter: blur(10px) !important;
+                                        border: 1px solid rgba(0, 255, 220, 0.3) !important;
+                                        border-radius: 20px !important;
+                                        padding: 12px 6px !important;
+                                        box-shadow: 0 0 15px rgba(0, 255, 220, 0.25) !important;
+                                        display: flex !important;
+                                        flex-direction: column !important;
+                                        align-items: center !important;
+                                        gap: 10px !important;
+                                    }
 
-                                /* Custom hover animations for the actions */
-                                [class*=""SectionActionBarContainer""] button,
-                                [class*=""SectionActionBarContainer""] [role=""button""] {
-                                    background: transparent !important;
-                                    border: none !important;
-                                    transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-                                    cursor: pointer !important;
-                                }
-                                [class*=""SectionActionBarContainer""] button:hover,
-                                [class*=""SectionActionBarContainer""] [role=""button""]:hover {
-                                    transform: scale(1.15) !important;
-                                    filter: drop-shadow(0 0 5px rgba(0, 255, 220, 0.8)) !important;
-                                }
+                                    /* Custom hover animations for the actions */
+                                    [class*=""SectionActionBarContainer""] button,
+                                    [class*=""SectionActionBarContainer""] [role=""button""] {
+                                        background: transparent !important;
+                                        border: none !important;
+                                        transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+                                        cursor: pointer !important;
+                                    }
+                                    [class*=""SectionActionBarContainer""] button:hover,
+                                    [class*=""SectionActionBarContainer""] [role=""button""]:hover {
+                                        transform: scale(1.15) !important;
+                                        filter: drop-shadow(0 0 5px rgba(0, 255, 220, 0.8)) !important;
+                                    }
 
-                                /* Neon recoloring for SVG icons */
-                                [class*=""SectionActionBarContainer""] svg {
-                                    fill: #00ffd2 !important;
-                                    color: #00ffd2 !important;
-                                }
+                                    /* Neon recoloring for SVG icons */
+                                    [class*=""SectionActionBarContainer""] svg {
+                                        fill: #00ffd2 !important;
+                                        color: #00ffd2 !important;
+                                    }
 
-                                /* Courier style for numbers/counters */
-                                [class*=""SectionActionBarContainer""] strong {
-                                    color: #ffffff !important;
-                                    font-family: 'Courier New', Courier, monospace !important;
-                                    font-size: 11px !important;
-                                    text-shadow: 0 0 4px rgba(0, 255, 220, 0.6) !important;
-                                    letter-spacing: 0.5px !important;
-                                    margin-top: 2px !important;
-                                    font-weight: 700 !important;
-                                }
+                                    /* Courier style for numbers/counters */
+                                    [class*=""SectionActionBarContainer""] strong {
+                                        color: #ffffff !important;
+                                        font-family: 'Courier New', Courier, monospace !important;
+                                        font-size: 11px !important;
+                                        text-shadow: 0 0 4px rgba(0, 255, 220, 0.6) !important;
+                                        letter-spacing: 0.5px !important;
+                                        margin-top: 2px !important;
+                                        font-weight: 700 !important;
+                                    }
 
-                                /* Reposition and style video info (user, description, music) as a sleek sci-fi terminal box */
-                                [class*=""DivVideoInfoContainer""],
-                                [class*=""DivDescription""],
-                                [class*=""DivVideoDescription""] {
-                                    position: absolute !important;
-                                    bottom: 70px !important;
-                                    left: 10px !important;
-                                    width: 330px !important;
-                                    z-index: 999 !important;
-                                    background: rgba(10, 15, 20, 0.65) !important;
-                                    backdrop-filter: blur(10px) !important;
-                                    -webkit-backdrop-filter: blur(10px) !important;
-                                    border-left: 4px solid #00ffd2 !important;
-                                    border-top: 1px solid rgba(0, 255, 220, 0.2) !important;
-                                    border-right: 1px solid rgba(0, 255, 220, 0.2) !important;
-                                    border-bottom: 1px solid rgba(0, 255, 220, 0.2) !important;
-                                    border-radius: 0 12px 12px 0 !important;
-                                    padding: 10px 14px !important;
-                                    box-shadow: 0 0 15px rgba(0, 255, 220, 0.2) !important;
-                                    color: #e0f7f4 !important;
-                                    font-family: 'Courier New', Courier, monospace !important;
-                                    box-sizing: border-box !important;
-                                }
+                                    /* Reposition and style video info (user, description, music) as a sleek sci-fi terminal box */
+                                    [class*=""DivVideoInfoContainer""],
+                                    [class*=""DivDescription""],
+                                    [class*=""DivVideoDescription""] {
+                                        position: absolute !important;
+                                        bottom: 70px !important;
+                                        left: 10px !important;
+                                        width: 330px !important;
+                                        z-index: 999 !important;
+                                        background: rgba(10, 15, 20, 0.65) !important;
+                                        backdrop-filter: blur(10px) !important;
+                                        -webkit-backdrop-filter: blur(10px) !important;
+                                        border-left: 4px solid #00ffd2 !important;
+                                        border-top: 1px solid rgba(0, 255, 220, 0.2) !important;
+                                        border-right: 1px solid rgba(0, 255, 220, 0.2) !important;
+                                        border-bottom: 1px solid rgba(0, 255, 220, 0.2) !important;
+                                        border-radius: 0 12px 12px 0 !important;
+                                        padding: 10px 14px !important;
+                                        box-shadow: 0 0 15px rgba(0, 255, 220, 0.2) !important;
+                                        color: #e0f7f4 !important;
+                                        font-family: 'Courier New', Courier, monospace !important;
+                                        box-sizing: border-box !important;
+                                    }
 
-                                /* Highlight username and tags in glowing cyan/teal */
-                                [class*=""DivVideoInfoContainer""] a,
-                                [class*=""DivVideoInfoContainer""] h3,
-                                [class*=""DivVideoInfoContainer""] h4,
-                                [class*=""DivDescription""] a,
-                                [class*=""DivVideoDescription""] a {
-                                    color: #00ffd2 !important;
-                                    text-decoration: none !important;
-                                    font-weight: bold !important;
-                                    text-shadow: 0 0 5px rgba(0, 255, 220, 0.7) !important;
-                                }
+                                    /* Highlight username and tags in glowing cyan/teal */
+                                    [class*=""DivVideoInfoContainer""] a,
+                                    [class*=""DivVideoInfoContainer""] h3,
+                                    [class*=""DivVideoInfoContainer""] h4,
+                                    [class*=""DivDescription""] a,
+                                    [class*=""DivVideoDescription""] a {
+                                        color: #00ffd2 !important;
+                                        text-decoration: none !important;
+                                        font-weight: bold !important;
+                                        text-shadow: 0 0 5px rgba(0, 255, 220, 0.7) !important;
+                                    }
 
-                                /* Style music/sound text with a glowing icon effect */
-                                [class*=""DivMusicText""], [class*=""DivMusic""], [class*=""DivSound""], [class*=""DivMusicInfo""] {
-                                    color: #88a8a4 !important;
-                                    font-size: 11px !important;
-                                    margin-top: 8px !important;
-                                    display: flex !important;
-                                    align-items: center !important;
-                                    font-family: 'Courier New', Courier, monospace !important;
-                                }
+                                    /* Style music/sound text with a glowing icon effect */
+                                    [class*=""DivMusicText""], [class*=""DivMusic""], [class*=""DivSound""], [class*=""DivMusicInfo""] {
+                                        color: #88a8a4 !important;
+                                        font-size: 11px !important;
+                                        margin-top: 8px !important;
+                                        display: flex !important;
+                                        align-items: center !important;
+                                        font-family: 'Courier New', Courier, monospace !important;
+                                    }
 
-                                /* Hide scrollbars */
-                                html::-webkit-scrollbar, body::-webkit-scrollbar {
-                                    display: none !important;
-                                }
-                            `;
+                                    /* Hide scrollbars */
+                                    html::-webkit-scrollbar, body::-webkit-scrollbar {
+                                        display: none !important;
+                                    }
+                                `;
+                            }
                             var container = document.head || document.documentElement;
                             if (container) {
                                 container.appendChild(style);
