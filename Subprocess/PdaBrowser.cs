@@ -265,6 +265,89 @@ namespace TikTokPda
                 // Inject CSS/JS to hide app download banners/popups, automatically click "Not now", and forward console messages
                 string script = @"
                     (function() {
+                        // App Store and download link helper
+                        function isAppStoreUrl(url) {
+                            if (!url) return false;
+                            var lowerUrl = String(url).toLowerCase();
+                            return lowerUrl.indexOf('apps.apple.com') >= 0 || 
+                                   lowerUrl.indexOf('play.google.com') >= 0 || 
+                                   lowerUrl.indexOf('itunes.apple.com') >= 0 || 
+                                   lowerUrl.indexOf('onelink.me') >= 0 || 
+                                   lowerUrl.indexOf('tiktok.com/download') >= 0 ||
+                                   lowerUrl.indexOf('apple.co') >= 0 ||
+                                   lowerUrl.indexOf('itms-apps') >= 0 ||
+                                   lowerUrl.indexOf('market://') >= 0 ||
+                                   (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://') && !lowerUrl.startsWith('about:') && !lowerUrl.startsWith('javascript:'));
+                        }
+
+                        // Override window.open
+                        try {
+                            var originalOpen = window.open;
+                            window.open = function(url, target, features) {
+                                if (isAppStoreUrl(url)) {
+                                    console.log('BLOCKED window.open to: ' + url);
+                                    return null;
+                                }
+                                return originalOpen.apply(this, arguments);
+                            };
+                        } catch(e) {
+                            console.error('Failed to override window.open:', e);
+                        }
+
+                        // Override Location setters and methods
+                        try {
+                            var desc = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+                            if (desc && desc.set) {
+                                var originalSetHref = desc.set;
+                                Object.defineProperty(Location.prototype, 'href', {
+                                    set: function(url) {
+                                        if (isAppStoreUrl(url)) {
+                                            console.log('BLOCKED location.href set to: ' + url);
+                                            return;
+                                        }
+                                        originalSetHref.call(this, url);
+                                    },
+                                    get: desc.get
+                                });
+                            }
+
+                            var originalAssign = Location.prototype.assign;
+                            Location.prototype.assign = function(url) {
+                                if (isAppStoreUrl(url)) {
+                                    console.log('BLOCKED location.assign to: ' + url);
+                                    return;
+                                }
+                                return originalAssign.call(this, url);
+                            };
+
+                            var originalReplace = Location.prototype.replace;
+                            Location.prototype.replace = function(url) {
+                                if (isAppStoreUrl(url)) {
+                                    console.log('BLOCKED location.replace to: ' + url);
+                                    return;
+                                }
+                                return originalReplace.call(this, url);
+                            };
+                        } catch(e) {
+                            console.error('Failed to override Location prototypes:', e);
+                        }
+
+                        // Capture clicks on App Store links
+                        window.addEventListener('click', function(e) {
+                            var target = e.target;
+                            while (target && target.tagName !== 'A') {
+                                target = target.parentElement;
+                            }
+                            if (target && target.tagName === 'A') {
+                                var href = target.getAttribute('href');
+                                if (isAppStoreUrl(href)) {
+                                    console.log('BLOCKED click on link to: ' + href);
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                }
+                            }
+                        }, true);
+
                         // Scrolling and clicking state tracking to manage video pause authorization
                         var isScrolling = false;
                         var isUserClick = false;
