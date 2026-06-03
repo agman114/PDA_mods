@@ -179,20 +179,8 @@ namespace TikTokPda
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
 
-                // Emulate a desktop screen size (769x1100) and scale it down to fit our 490px control
-                try
-                {
-                    await webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setDeviceMetricsOverride", 
-                        "{\"width\":769,\"height\":1100,\"deviceScaleFactor\":1,\"mobile\":false}");
-                    Log("[PDA] Desktop screen emulation enabled.");
-                    
-                    webView.ZoomFactor = 0.637; // 490 / 769
-                    Log("[PDA] ZoomFactor set to " + webView.ZoomFactor);
-                }
-                catch (Exception ex)
-                {
-                    Log("[PDA Error] Failed to enable screen emulation: " + ex.ToString());
-                }
+                // Device emulation disabled for stock browser version
+                Log("[PDA] Stock desktop browser layout active.");
 
                 // Handle process failures
                 webView.CoreWebView2.ProcessFailed += (s, e) =>
@@ -546,7 +534,18 @@ namespace TikTokPda
                         };
 
                         function inject() {
-                            // Stock desktop browser TikTok layout (no CSS overrides)
+                            var style = document.createElement('style');
+                            style.innerHTML = `
+                                /* Ensure black background for all elements */
+                                html, body, #app, main {
+                                    background-color: #000000 !important;
+                                    background: #000000 !important;
+                                }
+                            `;
+                            var container = document.head || document.documentElement;
+                            if (container) {
+                                container.appendChild(style);
+                            }
                         }
 
                         if (document.head || document.documentElement) {
