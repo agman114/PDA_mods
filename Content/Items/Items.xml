@@ -2,7 +2,7 @@
 <Items>
   <Item identifier="tiktokpda" category="Equipment" Tags="smallitem,pda" cargocontaineridentifier="metalcrate" description="A modern Europan PDA capable of accessing the local network... and somehow TikTok." scale="0.04" price="150" deconstructtime="10">
     <PreferredContainer primary="crewcab" secondary="wreckcab" spawnprobability="0.5" />
-    <Fabricate suitablefabricators="fabricator" requiredtime="10">
+    <Fabricate suitablefabricators="fabricator" category="Equipment" amount="1" requiredtime="10" requiresrecipe="false">
       <RequiredItem identifier="fpgacircuit" />
       <RequiredItem identifier="steelbar" />
     </Fabricate>
