@@ -546,7 +546,129 @@ namespace TikTokPda
                         };
 
                         function inject() {
-                            // Stock desktop browser TikTok layout (no CSS overrides)
+                            var style = document.createElement('style');
+                            style.innerHTML = `
+                                /* Hide header, footer, sidebars, app download banners/popups, etc. */
+                                header, footer,
+                                [class*=""header""], [class*=""Header""],
+                                [class*=""Sidebar""], [class*=""sidebar""],
+                                [class*=""download""], [class*=""Download""],
+                                [class*=""banner""], [class*=""Banner""],
+                                [class*=""AppOpen""], [class*=""app-open""],
+                                [class*=""AppInstall""], [class*=""app-install""],
+                                a[href*=""apps.apple.com""], a[href*=""play.google.com""],
+                                a[href*=""onelink.me""] {
+                                    display: none !important;
+                                    width: 0 !important;
+                                    height: 0 !important;
+                                    visibility: hidden !important;
+                                    pointer-events: none !important;
+                                    opacity: 0 !important;
+                                }
+
+                                /* Position modals off-screen so they can still receive programmatic clicks */
+                                [class*=""popup""], [class*=""Popup""],
+                                [class*=""modal""], [class*=""Modal""],
+                                [class*=""tux-modal""], [class*=""tux-dialog""],
+                                [class*=""tux-popup""], [class*=""tux-toast""],
+                                [class*=""login""], [class*=""Login""],
+                                [class*=""signup""], [class*=""Signup""],
+                                [class*=""gate""], [class*=""Gate""] {
+                                    position: absolute !important;
+                                    left: -9999px !important;
+                                    top: -9999px !important;
+                                    opacity: 0 !important;
+                                    pointer-events: none !important;
+                                    width: auto !important;
+                                    height: auto !important;
+                                    visibility: visible !important;
+                                }
+
+                                /* Ensure black background for all elements */
+                                html, body, #app, main, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
+                                    background-color: #000000 !important;
+                                    background: #000000 !important;
+                                }
+
+                                /* Force top-level containers to have a strict width of 769px */
+                                html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
+                                    width: 769px !important;
+                                    max-width: 769px !important;
+                                    min-width: 769px !important;
+                                    margin: 0 auto !important;
+                                    padding: 0 !important;
+                                    position: relative !important;
+                                    display: block !important;
+                                }
+
+                                /* Force article to fill exactly 1100px vertically and 769px horizontally */
+                                [class*=""ArticleItemContainer""] {
+                                    height: 1100px !important;
+                                    min-height: 1100px !important;
+                                    max-height: 1100px !important;
+                                    width: 769px !important;
+                                    max-width: 769px !important;
+                                    min-width: 769px !important;
+                                    margin: 0 auto !important;
+                                    padding: 0 !important;
+                                    position: relative !important;
+                                    display: block !important;
+                                }
+
+                                /* Force flex layout to be absolute full-screen inside article */
+                                [class*=""DivContentFlexLayout""] {
+                                    width: 769px !important;
+                                    height: 1100px !important;
+                                    max-width: 769px !important;
+                                    max-height: 1100px !important;
+                                    position: absolute !important;
+                                    top: 0 !important;
+                                    left: 0 !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    display: block !important;
+                                }
+
+                                /* Force media card (video player wrapper) to occupy the entire viewport */
+                                [class*=""SectionMediaCardContainer""] {
+                                    width: 769px !important;
+                                    height: 1100px !important;
+                                    max-width: 769px !important;
+                                    max-height: 1100px !important;
+                                    min-width: 769px !important;
+                                    min-height: 1100px !important;
+                                    position: absolute !important;
+                                    top: 0 !important;
+                                    left: 0 !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                }
+
+                                /* Force video element to fit nicely inside the container */
+                                [class*=""SectionMediaCardContainer""] video {
+                                    width: 100% !important;
+                                    height: 100% !important;
+                                    object-fit: contain !important;
+                                }
+
+                                /* Reposition interaction action buttons to bottom-right corner over the video player */
+                                [class*=""SectionActionBarContainer""] {
+                                    position: absolute !important;
+                                    bottom: 80px !important;
+                                    right: 20px !important;
+                                    z-index: 999 !important;
+                                    background: transparent !important;
+                                }
+
+                                /* Hide scrollbars */
+                                html::-webkit-scrollbar, body::-webkit-scrollbar {
+                                    display: none !important;
+                                }
+                            `;
+                            var container = document.head || document.documentElement;
+                            if (container) {
+                                container.appendChild(style);
+                            }
                         }
 
                         if (document.head || document.documentElement) {
