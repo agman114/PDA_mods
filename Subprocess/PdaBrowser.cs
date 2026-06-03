@@ -827,7 +827,7 @@ namespace TikTokPda
                                         background: rgba(10, 15, 20, 0.65) !important;
                                         backdrop-filter: blur(10px) !important;
                                         -webkit-backdrop-filter: blur(10px) !important;
-                                        border-left: 4px solid #00ffd2 !important;
+                                        border-left: 2px solid #00ffd2 !important;
                                         border-top: 1px solid rgba(0, 255, 220, 0.2) !important;
                                         border-right: 1px solid rgba(0, 255, 220, 0.2) !important;
                                         border-bottom: 1px solid rgba(0, 255, 220, 0.2) !important;
