@@ -590,7 +590,7 @@ namespace TikTokPda
                                     background: #000000 !important;
                                 }
 
-                                /* Force top-level containers to have a strict width of 769px and apply a subtle sci-fi glow */
+                                /* Force top-level containers to have a strict width of 769px */
                                 html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
                                     width: 769px !important;
                                     max-width: 769px !important;
@@ -599,29 +599,6 @@ namespace TikTokPda
                                     padding: 0 !important;
                                     position: relative !important;
                                     display: block !important;
-                                }
-
-                                /* Add retro HUD scanline feel to screen */
-                                html::after {
-                                    content: "" "" !important;
-                                    display: block !important;
-                                    position: fixed !important;
-                                    top: 0 !important;
-                                    left: 0 !important;
-                                    width: 100% !important;
-                                    height: 100% !important;
-                                    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)) !important;
-                                    background-size: 100% 4px, 6px 100% !important;
-                                    z-index: 999999 !important;
-                                    pointer-events: none !important;
-                                    opacity: 0.45 !important;
-                                }
-
-                                /* Glowing viewport boundary */
-                                body {
-                                    border: 2px solid rgba(0, 255, 220, 0.25) !important;
-                                    box-shadow: inset 0 0 30px rgba(0, 255, 220, 0.15), 0 0 15px rgba(0, 255, 220, 0.1) !important;
-                                    box-sizing: border-box !important;
                                 }
 
                                 /* Force article to fill exactly 1100px vertically and 769px horizontally */
@@ -667,12 +644,11 @@ namespace TikTokPda
                                     padding: 0 !important;
                                 }
 
-                                /* Force video element to fit nicely inside the container and add glowing back shadow */
+                                /* Force video element to fit nicely inside the container */
                                 [class*=""SectionMediaCardContainer""] video {
                                     width: 100% !important;
                                     height: 100% !important;
                                     object-fit: contain !important;
-                                    box-shadow: 0 0 30px rgba(0, 255, 220, 0.15) !important;
                                 }
 
                                 /* Reposition interaction action buttons to bottom-right corner over the video player with Glassmorphism and Neon Cyan glow */
