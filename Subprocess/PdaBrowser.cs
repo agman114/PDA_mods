@@ -282,27 +282,57 @@ namespace TikTokPda
                     };
                     popupForm.Controls.Add(popupWebView);
                     
-                    // We must initialize the popup WebView2 in the same environment so that cookies/session are shared!
-                    await popupWebView.EnsureCoreWebView2Async(env);
-                    
-                    // Once initialized, assign e.NewWindow and complete the deferral!
-                    e.NewWindow = popupWebView.CoreWebView2;
-                    e.Handled = true; // We handled it
-                    deferral.Complete();
-
-                    // Hook close window request to close the WinForms popup Form automatically
-                    popupWebView.CoreWebView2.WindowCloseRequested += (sender, args) =>
+                    // Disable the main PDA form to make this behave like a modal dialog, and re-enable on close
+                    this.Enabled = false;
+                    popupForm.FormClosed += (sender, args) =>
                     {
-                        Log("[PDA] Popup window close requested by script.");
-                        popupForm.Close();
+                        this.Enabled = true;
                     };
-                    
-                    // Show the popup form as a modal dialog
-                    popupForm.ShowDialog(this);
-                    
-                    // Clean up after the form is closed
-                    popupWebView.Dispose();
-                    popupForm.Dispose();
+
+                    // Set up event handlers to log navigation and errors in the popup WebView2
+                    popupWebView.NavigationStarting += (sender, args) =>
+                    {
+                        Log("[PDA Popup] Navigation starting: " + args.Uri);
+                    };
+                    popupWebView.NavigationCompleted += (sender, args) =>
+                    {
+                        Log("[PDA Popup] Navigation completed (Success: " + args.IsSuccess + ", Error: " + args.WebErrorStatus + ")");
+                    };
+
+                    try
+                    {
+                        // Show the form modelessly first so handles are created and it paints
+                        popupForm.Show(this);
+                        
+                        // We must initialize the popup WebView2 in the same environment so that cookies/session are shared!
+                        await popupWebView.EnsureCoreWebView2Async(env);
+
+                        // Set popup user agent to match the main desktop one
+                        popupWebView.CoreWebView2.Settings.UserAgent = MobileUserAgent;
+                        popupWebView.CoreWebView2.Settings.IsZoomControlEnabled = false;
+                        popupWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+
+                        // Once initialized, assign e.NewWindow and complete the deferral!
+                        e.NewWindow = popupWebView.CoreWebView2;
+                        e.Handled = true; // We handled it
+
+                        // Hook close window request to close the WinForms popup Form automatically
+                        popupWebView.CoreWebView2.WindowCloseRequested += (sender, args) =>
+                        {
+                            Log("[PDA] Popup window close requested by script.");
+                            popupForm.Close();
+                        };
+                    }
+                    catch (Exception ex)
+                    {
+                        Log("[PDA Error] Failed to initialize popup WebView2: " + ex.ToString());
+                        e.Handled = true;
+                        popupForm.Close();
+                    }
+                    finally
+                    {
+                        deferral.Complete();
+                    }
                 };
 
                 // Inject CSS/JS to hide app download banners/popups, automatically click "Not now", and forward console messages
