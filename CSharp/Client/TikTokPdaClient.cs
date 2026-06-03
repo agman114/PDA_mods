@@ -167,8 +167,6 @@ namespace TikTokPda
         {
             if (__instance == null || user == null) return true;
             
-            LuaCsLogger.Log("Item.Use Prefix called for: " + __instance.Prefab.Identifier.Value + " (User: " + user.Name + ")");
-
             // Only trigger for local client player
             if (Character.Controlled != user) return true;
 
