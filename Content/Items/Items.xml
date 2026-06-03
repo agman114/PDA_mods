@@ -2,6 +2,13 @@
 <Items>
   <Item identifier="tiktokpda" category="Equipment" Tags="smallitem,pda" cargocontaineridentifier="metalcrate" description="A modern Europan PDA capable of accessing the local network... and somehow TikTok." scale="0.04" price="150" deconstructtime="10">
     <PreferredContainer primary="crewcab" secondary="wreckcab" spawnprobability="0.5" />
+    <Fabricate suitablefabricators="fabricator" requiredtime="10">
+      <RequiredItem identifier="fpgacircuit" />
+      <RequiredItem identifier="steelbar" />
+    </Fabricate>
+    <Deconstruct time="10">
+      <Item identifier="fpgacircuit" />
+    </Deconstruct>
     <Sprite texture="%ModDir%/Content/Items/pda_sprite.png" sourcerect="0,0,1024,1024" depth="0.55" origin="0.5,0.5" />
     <Body width="32" height="42" density="12" />
     <Holdable slots="Any,RightHand,LeftHand" controlpose="True" aimpos="40,5" handle1="-8,0" msg="ItemMsgPickUp" useinwater="true">
