@@ -239,26 +239,70 @@ namespace TikTokPda
                     }
                 };
 
-                // Block new window requests (like redirects to App Store)
-                webView.CoreWebView2.NewWindowRequested += (s, e) =>
+                // Handle new window requests (like Google/Apple/Facebook login popups)
+                webView.CoreWebView2.NewWindowRequested += async (s, e) =>
                 {
-                    e.Handled = true; // Prevent opening in external browser for ALL links
+                    var deferral = e.GetDeferral();
                     
                     string uri = e.Uri.ToString();
-                    Log("[PDA] Blocked new window request to: " + uri);
+                    Log("[PDA] New window requested to: " + uri);
                     
-                    // If it's a normal web link (not App Store or redirector), navigate to it in the current webview
                     string lowerUri = uri.ToLower();
-                    if (!lowerUri.Contains("apps.apple.com") && 
-                        !lowerUri.Contains("play.google.com") && 
-                        !lowerUri.Contains("itunes.apple.com") && 
-                        !lowerUri.Contains("onelink.me") && 
-                        !lowerUri.StartsWith("itms-apps") && 
-                        !lowerUri.Contains("tiktok.com/download") &&
-                        !lowerUri.Contains("apple.co"))
+                    bool isAppStoreOrDownload = lowerUri.Contains("apps.apple.com") || 
+                                                lowerUri.Contains("play.google.com") || 
+                                                lowerUri.Contains("itunes.apple.com") || 
+                                                lowerUri.Contains("onelink.me") || 
+                                                lowerUri.Contains("tiktok.com/download") ||
+                                                lowerUri.Contains("apple.co") ||
+                                                lowerUri.StartsWith("itms-apps") ||
+                                                lowerUri.Contains("market://");
+                                                
+                    if (isAppStoreOrDownload)
                     {
-                        webView.CoreWebView2.Navigate(uri);
+                        Log("[PDA] Blocked app download redirection.");
+                        e.Handled = true;
+                        deferral.Complete();
+                        return;
                     }
+
+                    // For login OAuth (Google, Facebook, Apple, etc.) or TikTok popups
+                    Log("[PDA] Creating popup window for OAuth: " + uri);
+                    
+                    Form popupForm = new Form
+                    {
+                        Size = new Size(540, 700),
+                        Text = "OAuth Login - Europa-OS",
+                        StartPosition = FormStartPosition.CenterParent,
+                        FormBorderStyle = FormBorderStyle.SizableToolWindow
+                    };
+                    
+                    WebView2 popupWebView = new WebView2
+                    {
+                        Dock = DockStyle.Fill
+                    };
+                    popupForm.Controls.Add(popupWebView);
+                    
+                    // We must initialize the popup WebView2 in the same environment so that cookies/session are shared!
+                    await popupWebView.EnsureCoreWebView2Async(env);
+                    
+                    // Once initialized, assign e.NewWindow and complete the deferral!
+                    e.NewWindow = popupWebView.CoreWebView2;
+                    e.Handled = true; // We handled it
+                    deferral.Complete();
+
+                    // Hook close window request to close the WinForms popup Form automatically
+                    popupWebView.CoreWebView2.WindowCloseRequested += (sender, args) =>
+                    {
+                        Log("[PDA] Popup window close requested by script.");
+                        popupForm.Close();
+                    };
+                    
+                    // Show the popup form as a modal dialog
+                    popupForm.ShowDialog(this);
+                    
+                    // Clean up after the form is closed
+                    popupWebView.Dispose();
+                    popupForm.Dispose();
                 };
 
                 // Inject CSS/JS to hide app download banners/popups, automatically click "Not now", and forward console messages
