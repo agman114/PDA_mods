@@ -614,6 +614,9 @@ namespace TikTokPda
                         };
 
                         function inject() {
+                            var style = document.createElement('style');
+                            style.innerHTML = `
+                        function inject() {
                             var isLoginOrSignup = window.location.href.indexOf('/login') >= 0 || window.location.href.indexOf('/signup') >= 0;
                             var style = document.createElement('style');
                             if (isLoginOrSignup) {
@@ -848,61 +851,20 @@ namespace TikTokPda
                                         text-shadow: 0 0 5px rgba(0, 255, 220, 0.7) !important;
                                     }
 
-                                     /* Style music/sound text with a glowing icon effect */
-                                     [class*=""DivMusicText""], [class*=""DivMusic""], [class*=""DivSound""], [class*=""DivMusicInfo""] {
-                                         color: #88a8a4 !important;
-                                         font-size: 11px !important;
-                                         margin-top: 8px !important;
-                                         display: flex !important;
-                                         align-items: center !important;
-                                         font-family: 'Courier New', Courier, monospace !important;
-                                     }
+                                    /* Style music/sound text with a glowing icon effect */
+                                    [class*=""DivMusicText""], [class*=""DivMusic""], [class*=""DivSound""], [class*=""DivMusicInfo""] {
+                                        color: #88a8a4 !important;
+                                        font-size: 11px !important;
+                                        margin-top: 8px !important;
+                                        display: flex !important;
+                                        align-items: center !important;
+                                        font-family: 'Courier New', Courier, monospace !important;
+                                    }
 
-                                     /* Make the left navigation sidebar thinner and fit its items */
-                                     [class*=""DivSideNavPlaceholderContainer""],
-                                     [class*=""DivSideNavContainer""] {
-                                         width: 48px !important;
-                                         min-width: 48px !important;
-                                         max-width: 48px !important;
-                                         padding: 0 !important;
-                                         margin: 0 !important;
-                                     }
-
-                                     /* Clean up link/button paddings and center them in the sidebar */
-                                     [class*=""DivSideNavContainer""] a,
-                                     [class*=""DivSideNavContainer""] button {
-                                         padding: 6px 2px !important;
-                                         margin: 4px 0 !important;
-                                         width: 100% !important;
-                                         min-width: 0 !important;
-                                         display: flex !important;
-                                         justify-content: center !important;
-                                         align-items: center !important;
-                                     }
-
-                                     /* Adjust icon sizes inside the sidebar to fit nicely */
-                                     [class*=""DivSideNavContainer""] svg {
-                                         width: 22px !important;
-                                         height: 22px !important;
-                                     }
-
-                                     /* Hide text labels inside the sidebar to make it icon-only */
-                                     [class*=""DivSideNavContainer""] span:not(:has(svg)):not(:has(img)),
-                                     [class*=""DivSideNavContainer""] a > *:not(:has(svg)):not(:has(img)) {
-                                         display: none !important;
-                                     }
-
-                                     /* Adjust layout offsets of content elements next to the thinner sidebar */
-                                     [class*=""DivSideNavPlaceholderContainer""] ~ div,
-                                     [class*=""DivSideNavPlaceholderContainer""] ~ main,
-                                     [class*=""DivSideNavPlaceholderContainer""] ~ section {
-                                         margin-left: 48px !important;
-                                     }
-
-                                     /* Hide scrollbars */
-                                     html::-webkit-scrollbar, body::-webkit-scrollbar {
-                                         display: none !important;
-                                     }
+                                    /* Hide scrollbars */
+                                    html::-webkit-scrollbar, body::-webkit-scrollbar {
+                                        display: none !important;
+                                    }
                                 `;
                             }
                             var container = document.head || document.documentElement;
