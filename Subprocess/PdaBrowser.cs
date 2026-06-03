@@ -43,7 +43,7 @@ namespace TikTokPda
         private bool shouldBlockUnload = false;
 
         private const string InitialUrl = "https://www.tiktok.com/";
-        private const string MobileUserAgent = "Mozilla/5.0 (Linux; Android 13; SM-S901B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36";
+        private const string MobileUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
         public PdaBrowser() : this(IntPtr.Zero) { }
 
@@ -179,12 +179,15 @@ namespace TikTokPda
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
 
-                // Emulate a mobile screen size (490x700) with touch enabled
+                // Emulate a desktop screen size (769x1100) and scale it down to fit our 490px control
                 try
                 {
                     await webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setDeviceMetricsOverride", 
-                        "{\"width\":490,\"height\":700,\"deviceScaleFactor\":1,\"mobile\":true}");
-                    Log("[PDA] Mobile screen emulation enabled.");
+                        "{\"width\":769,\"height\":1100,\"deviceScaleFactor\":1,\"mobile\":false}");
+                    Log("[PDA] Desktop screen emulation enabled.");
+                    
+                    webView.ZoomFactor = 0.637; // 490 / 769
+                    Log("[PDA] ZoomFactor set to " + webView.ZoomFactor);
                 }
                 catch (Exception ex)
                 {
@@ -545,9 +548,10 @@ namespace TikTokPda
                         function inject() {
                             var style = document.createElement('style');
                             style.innerHTML = `
-                                /* Hide mobile header, app open links and download prompts */
+                                /* Hide header, footer, sidebars, app download banners/popups, etc. */
                                 header, footer,
                                 [class*=""header""], [class*=""Header""],
+                                [class*=""Sidebar""], [class*=""sidebar""],
                                 [class*=""download""], [class*=""Download""],
                                 [class*=""banner""], [class*=""Banner""],
                                 [class*=""AppOpen""], [class*=""app-open""],
@@ -581,9 +585,84 @@ namespace TikTokPda
                                 }
 
                                 /* Ensure black background for all elements */
-                                html, body, #app, main {
+                                html, body, #app, main, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
                                     background-color: #000000 !important;
                                     background: #000000 !important;
+                                }
+
+                                /* Force top-level containers to have a strict width of 769px */
+                                html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
+                                    width: 769px !important;
+                                    max-width: 769px !important;
+                                    min-width: 769px !important;
+                                    margin: 0 auto !important;
+                                    padding: 0 !important;
+                                    position: relative !important;
+                                    display: block !important;
+                                }
+
+                                /* Force article to fill exactly 1100px vertically and 769px horizontally */
+                                [class*=""ArticleItemContainer""] {
+                                    height: 1100px !important;
+                                    min-height: 1100px !important;
+                                    max-height: 1100px !important;
+                                    width: 769px !important;
+                                    max-width: 769px !important;
+                                    min-width: 769px !important;
+                                    margin: 0 auto !important;
+                                    padding: 0 !important;
+                                    position: relative !important;
+                                    display: block !important;
+                                }
+
+                                /* Force flex layout to be absolute full-screen inside article */
+                                [class*=""DivContentFlexLayout""] {
+                                    width: 769px !important;
+                                    height: 1100px !important;
+                                    max-width: 769px !important;
+                                    max-height: 1100px !important;
+                                    position: absolute !important;
+                                    top: 0 !important;
+                                    left: 0 !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    display: block !important;
+                                }
+
+                                /* Force media card (video player wrapper) to occupy the entire viewport */
+                                [class*=""SectionMediaCardContainer""] {
+                                    width: 769px !important;
+                                    height: 1100px !important;
+                                    max-width: 769px !important;
+                                    max-height: 1100px !important;
+                                    min-width: 769px !important;
+                                    min-height: 1100px !important;
+                                    position: absolute !important;
+                                    top: 0 !important;
+                                    left: 0 !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                }
+
+                                /* Force video element to fit nicely inside the container */
+                                [class*=""SectionMediaCardContainer""] video {
+                                    width: 100% !important;
+                                    height: 100% !important;
+                                    object-fit: contain !important;
+                                }
+
+                                /* Reposition interaction action buttons to bottom-right corner over the video player */
+                                [class*=""SectionActionBarContainer""] {
+                                    position: absolute !important;
+                                    bottom: 80px !important;
+                                    right: 20px !important;
+                                    z-index: 999 !important;
+                                    background: transparent !important;
+                                }
+
+                                /* Hide scrollbars */
+                                html::-webkit-scrollbar, body::-webkit-scrollbar {
+                                    display: none !important;
                                 }
                             `;
                             var container = document.head || document.documentElement;
