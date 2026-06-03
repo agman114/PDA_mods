@@ -590,7 +590,7 @@ namespace TikTokPda
                                     background: #000000 !important;
                                 }
 
-                                /* Force top-level containers to have a strict width of 769px */
+                                /* Force top-level containers to have a strict width of 769px and apply a subtle sci-fi glow */
                                 html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
                                     width: 769px !important;
                                     max-width: 769px !important;
@@ -599,6 +599,29 @@ namespace TikTokPda
                                     padding: 0 !important;
                                     position: relative !important;
                                     display: block !important;
+                                }
+
+                                /* Add retro HUD scanline feel to screen */
+                                html::after {
+                                    content: "" "" !important;
+                                    display: block !important;
+                                    position: fixed !important;
+                                    top: 0 !important;
+                                    left: 0 !important;
+                                    width: 100% !important;
+                                    height: 100% !important;
+                                    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)) !important;
+                                    background-size: 100% 4px, 6px 100% !important;
+                                    z-index: 999999 !important;
+                                    pointer-events: none !important;
+                                    opacity: 0.45 !important;
+                                }
+
+                                /* Glowing viewport boundary */
+                                body {
+                                    border: 2px solid rgba(0, 255, 220, 0.25) !important;
+                                    box-shadow: inset 0 0 30px rgba(0, 255, 220, 0.15), 0 0 15px rgba(0, 255, 220, 0.1) !important;
+                                    box-sizing: border-box !important;
                                 }
 
                                 /* Force article to fill exactly 1100px vertically and 769px horizontally */
@@ -644,20 +667,108 @@ namespace TikTokPda
                                     padding: 0 !important;
                                 }
 
-                                /* Force video element to fit nicely inside the container */
+                                /* Force video element to fit nicely inside the container and add glowing back shadow */
                                 [class*=""SectionMediaCardContainer""] video {
                                     width: 100% !important;
                                     height: 100% !important;
                                     object-fit: contain !important;
+                                    box-shadow: 0 0 30px rgba(0, 255, 220, 0.15) !important;
                                 }
 
-                                /* Reposition interaction action buttons to bottom-right corner over the video player */
+                                /* Reposition interaction action buttons to bottom-right corner over the video player with Glassmorphism and Neon Cyan glow */
                                 [class*=""SectionActionBarContainer""] {
                                     position: absolute !important;
-                                    bottom: 80px !important;
+                                    bottom: 120px !important;
                                     right: 20px !important;
                                     z-index: 999 !important;
+                                    background: rgba(10, 15, 20, 0.65) !important;
+                                    backdrop-filter: blur(10px) !important;
+                                    -webkit-backdrop-filter: blur(10px) !important;
+                                    border: 1px solid rgba(0, 255, 220, 0.3) !important;
+                                    border-radius: 24px !important;
+                                    padding: 18px 10px !important;
+                                    box-shadow: 0 0 20px rgba(0, 255, 220, 0.25) !important;
+                                    display: flex !important;
+                                    flex-direction: column !important;
+                                    align-items: center !important;
+                                    gap: 16px !important;
+                                }
+
+                                /* Custom hover animations for the actions */
+                                [class*=""SectionActionBarContainer""] button,
+                                [class*=""SectionActionBarContainer""] [role=""button""] {
                                     background: transparent !important;
+                                    border: none !important;
+                                    transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+                                    cursor: pointer !important;
+                                }
+                                [class*=""SectionActionBarContainer""] button:hover,
+                                [class*=""SectionActionBarContainer""] [role=""button""]:hover {
+                                    transform: scale(1.18) !important;
+                                    filter: drop-shadow(0 0 6px rgba(0, 255, 220, 0.8)) !important;
+                                }
+
+                                /* Neon recoloring for SVG icons */
+                                [class*=""SectionActionBarContainer""] svg {
+                                    fill: #00ffd2 !important;
+                                    color: #00ffd2 !important;
+                                }
+
+                                /* Courier style for numbers/counters */
+                                [class*=""SectionActionBarContainer""] strong {
+                                    color: #ffffff !important;
+                                    font-family: 'Courier New', Courier, monospace !important;
+                                    font-size: 11px !important;
+                                    text-shadow: 0 0 4px rgba(0, 255, 220, 0.6) !important;
+                                    letter-spacing: 0.5px !important;
+                                    margin-top: 2px !important;
+                                    font-weight: 700 !important;
+                                }
+
+                                /* Reposition and style video info (user, description, music) as a sleek sci-fi terminal box */
+                                [class*=""DivVideoInfoContainer""],
+                                [class*=""DivDescription""],
+                                [class*=""DivVideoDescription""] {
+                                    position: absolute !important;
+                                    bottom: 120px !important;
+                                    left: 20px !important;
+                                    width: 480px !important;
+                                    z-index: 999 !important;
+                                    background: rgba(10, 15, 20, 0.65) !important;
+                                    backdrop-filter: blur(10px) !important;
+                                    -webkit-backdrop-filter: blur(10px) !important;
+                                    border-left: 4px solid #00ffd2 !important;
+                                    border-top: 1px solid rgba(0, 255, 220, 0.2) !important;
+                                    border-right: 1px solid rgba(0, 255, 220, 0.2) !important;
+                                    border-bottom: 1px solid rgba(0, 255, 220, 0.2) !important;
+                                    border-radius: 0 16px 16px 0 !important;
+                                    padding: 14px 18px !important;
+                                    box-shadow: 0 0 20px rgba(0, 255, 220, 0.2) !important;
+                                    color: #e0f7f4 !important;
+                                    font-family: 'Courier New', Courier, monospace !important;
+                                    box-sizing: border-box !important;
+                                }
+
+                                /* Highlight username and tags in glowing cyan/teal */
+                                [class*=""DivVideoInfoContainer""] a,
+                                [class*=""DivVideoInfoContainer""] h3,
+                                [class*=""DivVideoInfoContainer""] h4,
+                                [class*=""DivDescription""] a,
+                                [class*=""DivVideoDescription""] a {
+                                    color: #00ffd2 !important;
+                                    text-decoration: none !important;
+                                    font-weight: bold !important;
+                                    text-shadow: 0 0 5px rgba(0, 255, 220, 0.7) !important;
+                                }
+
+                                /* Style music/sound text with a glowing icon effect */
+                                [class*=""DivMusicText""], [class*=""DivMusic""], [class*=""DivSound""], [class*=""DivMusicInfo""] {
+                                    color: #88a8a4 !important;
+                                    font-size: 11px !important;
+                                    margin-top: 8px !important;
+                                    display: flex !important;
+                                    align-items: center !important;
+                                    font-family: 'Courier New', Courier, monospace !important;
                                 }
 
                                 /* Hide scrollbars */
