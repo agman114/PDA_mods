@@ -1,4 +1,4 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<contentpackage name="TikTok PDA" modversion="1.0.4" corepackage="False" steamworkshopid="3738182866" gameversion="1.12.7.0">
+<contentpackage name="TikTok PDA" modversion="1.0.5" corepackage="False" steamworkshopid="3738182866" gameversion="1.12.7.0">
   <Item file="%ModDir%/Content/Items/Items.xml" />
 </contentpackage>
