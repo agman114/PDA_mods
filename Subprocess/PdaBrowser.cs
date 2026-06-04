@@ -151,7 +151,9 @@ namespace TikTokPda
         {
             try
             {
-                string logPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pda_browser.log");
+                string pdaDataDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "TikTokPDA");
+                System.IO.Directory.CreateDirectory(pdaDataDir);
+                string logPath = System.IO.Path.Combine(pdaDataDir, "pda_browser.log");
                 System.IO.File.AppendAllText(logPath, string.Format("[{0}] {1}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), message));
                 Console.WriteLine(message);
             }
@@ -173,7 +175,7 @@ namespace TikTokPda
                 this.Controls.Add(webView);
 
                 // Set up environment with a local user data folder to avoid permission errors
-                string localAppDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebViewData");
+                string localAppDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "TikTokPDA", "WebViewData");
                 Log("[PDA] Creating WebView2 environment in " + localAppDir);
                 var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
                 var env = await CoreWebView2Environment.CreateAsync(null, localAppDir, options);
