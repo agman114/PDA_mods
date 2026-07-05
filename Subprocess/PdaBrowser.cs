@@ -7,7 +7,7 @@ using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-namespace TikTokPda
+namespace YouTubeShortsPda
 {
     public class PdaBrowser : Form
     {
@@ -19,6 +19,16 @@ namespace TikTokPda
 
         [DllImport("user32.dll")]
         public static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentThreadId();
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -42,8 +52,8 @@ namespace TikTokPda
         private IntPtr parentHandle = IntPtr.Zero;
         private bool shouldBlockUnload = false;
 
-        private const string InitialUrl = "https://www.tiktok.com/";
-        private const string MobileUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        private const string InitialUrl = "https://www.youtube.com/shorts";
+        private const string MobileUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
         public PdaBrowser() : this(IntPtr.Zero) { }
 
@@ -56,7 +66,7 @@ namespace TikTokPda
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(24, 26, 30);
             this.DoubleBuffered = true;
-            this.Text = "Europan PDA - TikTok";
+            this.Text = "Europan PDA - YouTube Shorts";
 
             // Make the form window region slightly rounded for aesthetics
             GraphicsPath path = new GraphicsPath();
@@ -83,6 +93,22 @@ namespace TikTokPda
                     Console.WriteLine("[PDA] Setting parent window to: " + parentHandle);
                     SetParent(this.Handle, parentHandle);
                     
+                    // Attach thread input to fix cross-process keyboard focus issues
+                    uint parentPid = 0;
+                    uint parentThreadId = GetWindowThreadProcessId(parentHandle, out parentPid);
+                    uint childThreadId = GetCurrentThreadId();
+                    if (parentThreadId != 0 && childThreadId != 0 && parentThreadId != childThreadId)
+                    {
+                        AttachThreadInput(childThreadId, parentThreadId, true);
+                        Console.WriteLine("[PDA] Attached thread input to parent window thread.");
+                    }
+
+                    // Start monitoring parent process to exit if the game crashes
+                    if (parentPid != 0)
+                    {
+                        StartParentProcessMonitor(parentPid);
+                    }
+                    
                     RECT rect;
                     if (GetWindowRect(parentHandle, out rect))
                     {
@@ -97,6 +123,47 @@ namespace TikTokPda
                     Console.WriteLine("[PDA Error] Failed to set parent window: " + ex.ToString());
                 }
             }
+        }
+
+        private void StartParentProcessMonitor(uint parentPid)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var parentProcess = System.Diagnostics.Process.GetProcessById((int)parentPid);
+                    while (parentProcess != null && !parentProcess.HasExited)
+                    {
+                        await Task.Delay(1000);
+                    }
+                }
+                catch
+                {
+                    // Parent process is already dead or inaccessible
+                }
+                finally
+                {
+                    Console.WriteLine("[PDA] Parent process exited. Shutting down browser...");
+                    Application.Exit();
+                }
+            });
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (ledTimer != null)
+                {
+                    ledTimer.Stop();
+                    ledTimer.Dispose();
+                }
+                if (webView != null)
+                {
+                    webView.Dispose();
+                }
+            }
+            base.Dispose(disposing);
         }
 
         private void InitializePdaButtons()
@@ -126,7 +193,7 @@ namespace TikTokPda
                     Label = "LOGIN",
                     BorderColor = Color.FromArgb(200, 160, 0),
                     GlowColor = Color.FromArgb(255, 210, 0),
-                    Action = () => { if (webView != null) webView.Source = new Uri("https://www.tiktok.com/login"); }
+                    Action = () => { if (webView != null) webView.Source = new Uri("https://accounts.google.com/ServiceLogin?service=youtube"); }
                 },
                 new PdaButton
                 {
@@ -151,7 +218,7 @@ namespace TikTokPda
         {
             try
             {
-                string pdaDataDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "TikTokPDA");
+                string pdaDataDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "YouTubeShortsPDA");
                 System.IO.Directory.CreateDirectory(pdaDataDir);
                 string logPath = System.IO.Path.Combine(pdaDataDir, "pda_browser.log");
                 System.IO.File.AppendAllText(logPath, string.Format("[{0}] {1}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), message));
@@ -175,7 +242,7 @@ namespace TikTokPda
                 this.Controls.Add(webView);
 
                 // Set up environment with a local user data folder to avoid permission errors
-                string localAppDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "TikTokPDA", "WebViewData");
+                string localAppDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "YouTubeShortsPDA", "WebViewData");
                 Log("[PDA] Creating WebView2 environment in " + localAppDir);
                 var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
                 var env = await CoreWebView2Environment.CreateAsync(null, localAppDir, options);
@@ -183,14 +250,11 @@ namespace TikTokPda
                 await webView.EnsureCoreWebView2Async(env);
                 Log("[PDA] WebView2 control initialized successfully.");
 
-                // Set user agent to a desktop agent
+                // Set user agent to a mobile agent for vertical layout
                 webView.CoreWebView2.Settings.UserAgent = MobileUserAgent;
                 webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
-
-                // Use native layout size (490x700) to prevent Chromium scaling/decoding issues
-                Log("[PDA] Native layout size active.");
 
                 // Handle process failures
                 webView.CoreWebView2.ProcessFailed += (s, e) =>
@@ -212,7 +276,7 @@ namespace TikTokPda
                     }
                 };
 
-                // Intercept Beforeunload dialogs to block redirects without white screen
+                // Intercept Beforeunload dialogs
                 webView.CoreWebView2.ScriptDialogOpening += (s, e) =>
                 {
                     try
@@ -222,7 +286,6 @@ namespace TikTokPda
                         {
                             if (shouldBlockUnload)
                             {
-                                // To block the navigation and stay on the current page, we DO NOT call e.Accept()
                                 shouldBlockUnload = false;
                                 isLoading = false;
                                 this.Invalidate(new Rectangle(430, 10, 100, 50));
@@ -230,7 +293,7 @@ namespace TikTokPda
                             }
                             else
                             {
-                                e.Accept(); // Call Accept() to allow normal navigation
+                                e.Accept();
                                 Log("[PDA] Allowed Beforeunload dialog for navigation.");
                             }
                         }
@@ -241,11 +304,19 @@ namespace TikTokPda
                     }
                 };
 
-                // Handle new window requests (like Google/Apple/Facebook login popups)
+                // Handle new window requests
                 webView.CoreWebView2.NewWindowRequested += async (s, e) =>
                 {
                     var deferral = e.GetDeferral();
                     
+                    if (e.Uri == null)
+                    {
+                        Log("[PDA] New window requested with null URI.");
+                        e.Handled = true;
+                        deferral.Complete();
+                        return;
+                    }
+
                     string uri = e.Uri.ToString();
                     Log("[PDA] New window requested to: " + uri);
                     
@@ -254,7 +325,6 @@ namespace TikTokPda
                                                 lowerUri.Contains("play.google.com") || 
                                                 lowerUri.Contains("itunes.apple.com") || 
                                                 lowerUri.Contains("onelink.me") || 
-                                                lowerUri.Contains("tiktok.com/download") ||
                                                 lowerUri.Contains("apple.co") ||
                                                 lowerUri.StartsWith("itms-apps") ||
                                                 lowerUri.Contains("market://");
@@ -267,7 +337,6 @@ namespace TikTokPda
                         return;
                     }
 
-                    // For login OAuth (Google, Facebook, Apple, etc.) or TikTok popups
                     Log("[PDA] Creating popup window for OAuth: " + uri);
                     
                     Form popupForm = new Form
@@ -284,14 +353,12 @@ namespace TikTokPda
                     };
                     popupForm.Controls.Add(popupWebView);
                     
-                    // Disable the main PDA form to make this behave like a modal dialog, and re-enable on close
                     this.Enabled = false;
                     popupForm.FormClosed += (sender, args) =>
                     {
                         this.Enabled = true;
                     };
 
-                    // Set up event handlers to log navigation and errors in the popup WebView2
                     popupWebView.NavigationStarting += (sender, args) =>
                     {
                         Log("[PDA Popup] Navigation starting: " + args.Uri);
@@ -303,22 +370,16 @@ namespace TikTokPda
 
                     try
                     {
-                        // Show the form modelessly first so handles are created and it paints
                         popupForm.Show(this);
-                        
-                        // We must initialize the popup WebView2 in the same environment so that cookies/session are shared!
                         await popupWebView.EnsureCoreWebView2Async(env);
 
-                        // Set popup user agent to match the main desktop one
                         popupWebView.CoreWebView2.Settings.UserAgent = MobileUserAgent;
                         popupWebView.CoreWebView2.Settings.IsZoomControlEnabled = false;
                         popupWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
 
-                        // Once initialized, assign e.NewWindow and complete the deferral!
                         e.NewWindow = popupWebView.CoreWebView2;
-                        e.Handled = true; // We handled it
+                        e.Handled = true;
 
-                        // Hook close window request to close the WinForms popup Form automatically
                         popupWebView.CoreWebView2.WindowCloseRequested += (sender, args) =>
                         {
                             Log("[PDA] Popup window close requested by script.");
@@ -337,10 +398,10 @@ namespace TikTokPda
                     }
                 };
 
-                // Inject CSS/JS to hide app download banners/popups, automatically click "Not now", and forward console messages
+                // Inject CSS/JS scripts to style mobile YouTube Shorts, disable app popups, and support drag-to-scroll
                 string script = @"
                     (function() {
-                        // App Store and download link helper
+                        // Helper to check for app store redirection links
                         function isAppStoreUrl(url) {
                             if (!url) return false;
                             var lowerUrl = String(url).toLowerCase();
@@ -348,7 +409,6 @@ namespace TikTokPda
                                    lowerUrl.indexOf('play.google.com') >= 0 || 
                                    lowerUrl.indexOf('itunes.apple.com') >= 0 || 
                                    lowerUrl.indexOf('onelink.me') >= 0 || 
-                                   lowerUrl.indexOf('tiktok.com/download') >= 0 ||
                                    lowerUrl.indexOf('apple.co') >= 0 ||
                                    lowerUrl.indexOf('itms-apps') >= 0 ||
                                    lowerUrl.indexOf('market://') >= 0 ||
@@ -369,7 +429,7 @@ namespace TikTokPda
                             console.error('Failed to override window.open:', e);
                         }
 
-                        // Override Location setters and methods
+                        // Override Location setters
                         try {
                             var desc = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
                             if (desc && desc.set) {
@@ -407,7 +467,7 @@ namespace TikTokPda
                             console.error('Failed to override Location prototypes:', e);
                         }
 
-                        // Capture clicks on App Store links
+                        // Capture clicks on app store elements
                         window.addEventListener('click', function(e) {
                             var target = e.target;
                             while (target && target.tagName !== 'A') {
@@ -423,7 +483,6 @@ namespace TikTokPda
                             }
                         }, true);
 
-                        // Scrolling and clicking state tracking to manage video pause authorization
                         var isScrolling = false;
                         var isUserClick = false;
                         
@@ -448,7 +507,7 @@ namespace TikTokPda
                             }, 300);
                         }, true);
 
-                        // Overwrite document visibility and focus APIs to prevent TikTok from pausing on blur/hidden
+                        // Prevent focus/visibility blur pauses by YouTube
                         try {
                             Object.defineProperty(document, 'visibilityState', {
                                 get: function() { return 'visible'; }
@@ -460,7 +519,6 @@ namespace TikTokPda
                                 return true;
                             };
 
-                            // Intercept and discard blur and focusout events on window and document
                             var originalAddEventListener = window.addEventListener;
                             window.addEventListener = function(type, listener, options) {
                                 if (type === 'blur' || type === 'focusout') {
@@ -477,7 +535,6 @@ namespace TikTokPda
                                 return originalDocAddEventListener.apply(this, arguments);
                             };
 
-                            // Disable window.onblur and document.onblur properties
                             Object.defineProperty(window, 'onblur', {
                                 set: function(val) { },
                                 get: function() { return null; }
@@ -490,11 +547,11 @@ namespace TikTokPda
                             console.error('Focus override failed:', e);
                         }
 
-                        // Hook video play/pause/load/src to log stack traces and prevent unauthorized pauses
+                        // Override video play/pause
                         try {
                             var originalPlay = HTMLVideoElement.prototype.play;
                             HTMLVideoElement.prototype.play = function() {
-                                console.log('VIDEO PLAY CALLED on: ' + (this.src || this.currentSrc) + '\nStack: ' + new Error().stack);
+                                console.log('VIDEO PLAY CALLED');
                                 return originalPlay.apply(this, arguments);
                             };
 
@@ -503,56 +560,33 @@ namespace TikTokPda
                                 var stack = new Error().stack || '';
                                 var stackLower = stack.toLowerCase();
                                 
-                                // Only block pause if it is triggered by focus loss, window blur, or visibility changes
                                 var isFocusBlurPause = stackLower.indexOf('blur') >= 0 || 
                                                        stackLower.indexOf('focus') >= 0 || 
                                                        stackLower.indexOf('visibility') >= 0;
                                 
                                 if (isFocusBlurPause) {
-                                    console.log('BLOCKED focus/blur pause() | Stack: ' + stack.substring(0, 200));
+                                    console.log('BLOCKED focus/blur pause()');
                                     return;
                                 }
                                 
-                                console.log('VIDEO PAUSE ALLOWED on: ' + (this.src || this.currentSrc) + ' | Stack: ' + stack.substring(0, 150));
                                 return originalPause.apply(this, arguments);
                             };
-
-                            var originalLoad = HTMLVideoElement.prototype.load;
-                            HTMLVideoElement.prototype.load = function() {
-                                console.log('VIDEO LOAD CALLED on: ' + (this.src || this.currentSrc) + '\nStack: ' + new Error().stack);
-                                return originalLoad.apply(this, arguments);
-                            };
-
-                            var originalSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
-                            if (originalSrcDescriptor && originalSrcDescriptor.set) {
-                                Object.defineProperty(HTMLVideoElement.prototype, 'src', {
-                                    set: function(val) {
-                                        console.log('VIDEO SRC SET to: ' + val + '\nStack: ' + new Error().stack);
-                                        originalSrcDescriptor.set.call(this, val);
-                                    },
-                                    get: function() {
-                                        return originalSrcDescriptor.get.call(this);
-                                    }
-                                });
-                            }
                         } catch(e) {
                             console.error('Video prototype hook failed: ' + e);
                         }
 
-                        // Intercept beforeunload to block programmatic page navigation/redirects
                         window.addEventListener('beforeunload', function(e) {
                             e.preventDefault();
                             e.returnValue = 'Block';
                             return 'Block';
                         });
 
-                        // Drag-to-scroll implementation for desktop layout inside narrow PDA window
+                        // Drag-to-scroll navigation helper
                         let isDragging = false;
                         let startY = 0;
                         let scrollTop = 0;
                         
                         window.addEventListener('mousedown', function(e) {
-                            // Do not initiate drag if user clicked an interactive element (button, link, input)
                             var tag = e.target.tagName.toLowerCase();
                             if (tag === 'button' || tag === 'a' || tag === 'input' || tag === 'svg' || tag === 'path' ||
                                 e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) {
@@ -569,7 +603,7 @@ namespace TikTokPda
                             if (!isDragging) return;
                             e.preventDefault();
                             const y = e.clientY;
-                            const walk = (y - startY) * 1.5; // Drag speed multiplier
+                            const walk = (y - startY) * 1.5;
                             window.scrollTo(0, scrollTop - walk);
                         });
 
@@ -587,7 +621,7 @@ namespace TikTokPda
                             }
                         });
 
-                        // Forward console logs to C#
+                        // Forward logs
                         var originalLog = console.log;
                         console.log = function() {
                             var args = Array.prototype.slice.call(arguments);
@@ -600,272 +634,53 @@ namespace TikTokPda
                             window.chrome.webview.postMessage(JSON.stringify({ type: 'error', msg: args.join(' ') }));
                             if (originalError) originalError.apply(console, arguments);
                         };
-                        var originalWarn = console.warn;
-                        console.warn = function() {
-                            var args = Array.prototype.slice.call(arguments);
-                            window.chrome.webview.postMessage(JSON.stringify({ type: 'warn', msg: args.join(' ') }));
-                            if (originalWarn) originalWarn.apply(console, arguments);
-                        };
 
-                        window.onerror = function(message, source, lineno, colno, error) {
-                            window.chrome.webview.postMessage(JSON.stringify({
-                                type: 'onerror',
-                                msg: message + ' at ' + source + ':' + lineno + ':' + colno
-                            }));
-                            return false;
-                        };
-
+                        // Inject custom CSS styling to make YouTube mobile layout fit the PDA window perfectly
                         function inject() {
+                            var isLogin = window.location.href.indexOf('accounts.google.com') >= 0;
                             var style = document.createElement('style');
-                            style.innerHTML = `
-                        function inject() {
-                            var isLoginOrSignup = window.location.href.indexOf('/login') >= 0 || window.location.href.indexOf('/signup') >= 0;
-                            var style = document.createElement('style');
-                            if (isLoginOrSignup) {
+                            if (isLogin) {
                                 style.innerHTML = `
-                                    html, body, #app, main {
+                                    html, body {
                                         background-color: #000000 !important;
                                         background: #000000 !important;
-                                    }
-                                    /* Force top-level containers to have a strict width of 490px and height 700px */
-                                    html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
-                                        width: 490px !important;
-                                        height: 700px !important;
-                                        max-width: 490px !important;
-                                        max-height: 700px !important;
-                                        margin: 0 auto !important;
-                                        padding: 0 !important;
-                                        position: relative !important;
-                                        display: block !important;
-                                        overflow-y: auto !important;
-                                    }
-                                    /* Keep login inputs, form card visible and centered */
-                                    [class*=""DivLoginContainer""], [class*=""DivGateContainer""], [class*=""login""], [class*=""Login""], [class*=""signup""], [class*=""Signup""] {
-                                        width: 100% !important;
-                                        max-width: 490px !important;
-                                        margin: 0 auto !important;
-                                        display: block !important;
-                                        position: relative !important;
-                                        opacity: 1 !important;
-                                        visibility: visible !important;
-                                        pointer-events: auto !important;
-                                    }
-                                    /* Hide app download banners and header/footer */
-                                    header, [class*=""header""], [class*=""Header""],
-                                    [class*=""download""], [class*=""Download""], [class*=""banner""], [class*=""Banner""],
-                                    a[href*=""apps.apple.com""], a[href*=""play.google.com""], a[href*=""onelink.me""] {
-                                        display: none !important;
-                                    }
-                                    /* Hide scrollbars */
-                                    html::-webkit-scrollbar, body::-webkit-scrollbar {
-                                        display: none !important;
                                     }
                                 `;
                             } else {
                                 style.innerHTML = `
-                                    /* Hide header, footer, sidebars, app download banners/popups, etc. */
-                                    header, footer,
-                                    [class*=""header""], [class*=""Header""],
-                                    [class*=""Sidebar""], [class*=""sidebar""],
-                                    [class*=""download""], [class*=""Download""],
-                                    [class*=""banner""], [class*=""Banner""],
-                                    [class*=""AppOpen""], [class*=""app-open""],
-                                    [class*=""AppInstall""], [class*=""app-install""],
-                                    a[href*=""apps.apple.com""], a[href*=""play.google.com""],
-                                    a[href*=""onelink.me""] {
+                                    /* Hide YouTube Mobile Navigation Header, Pivot Bar, App Store Banners, Promos */
+                                    ytm-header-bar, ytm-pivot-bar-renderer, ytm-app-header-host,
+                                    .mobile-app-banner, ytm-promosheet, ytm-bottom-sheet-renderer,
+                                    a[href*=""play.google.com""], a[href*=""apps.apple.com""],
+                                    .ytm-app-promo, .ytm-open-app-button,
+                                    .shorts-mobile-header, .shorts-header-container {
                                         display: none !important;
                                         width: 0 !important;
                                         height: 0 !important;
                                         visibility: hidden !important;
-                                        pointer-events: none !important;
-                                        opacity: 0 !important;
-                                    }
-
-                                    /* Position modals off-screen so they can still receive programmatic clicks, 
-                                       but keep them visible if they contain input elements (login/signup forms) */
-                                    [class*=""popup""]:not(:has(input)), [class*=""Popup""]:not(:has(input)),
-                                    [class*=""modal""]:not(:has(input)), [class*=""Modal""]:not(:has(input)),
-                                    [class*=""tux-modal""]:not(:has(input)), [class*=""tux-dialog""]:not(:has(input)),
-                                    [class*=""tux-popup""]:not(:has(input)), [class*=""tux-toast""],
-                                    [class*=""login""]:not(:has(input)), [class*=""Login""]:not(:has(input)),
-                                    [class*=""signup""]:not(:has(input)), [class*=""Signup""]:not(:has(input)),
-                                    [class*=""gate""]:not(:has(input)), [class*=""Gate""]:not(:has(input)) {
-                                        position: absolute !important;
-                                        left: -9999px !important;
-                                        top: -9999px !important;
                                         opacity: 0 !important;
                                         pointer-events: none !important;
-                                        width: auto !important;
-                                        height: auto !important;
-                                        visibility: visible !important;
                                     }
-
-                                    /* Ensure black background for all elements */
-                                    html, body, #app, main, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
+                                    
+                                    /* Force background black for all components */
+                                    html, body, #app, ytm-app, ytm-shorts, .shorts-container {
                                         background-color: #000000 !important;
                                         background: #000000 !important;
-                                    }
-
-                                    /* Force top-level containers to have a strict width of 490px */
-                                    html, body, #app, [class*=""BaseBodyContainer""], [class*=""DivBodyContainer""] {
                                         width: 490px !important;
+                                        height: 700px !important;
                                         max-width: 490px !important;
-                                        min-width: 490px !important;
+                                        max-height: 700px !important;
                                         margin: 0 auto !important;
                                         padding: 0 !important;
                                         position: relative !important;
-                                        display: block !important;
+                                        overflow: hidden !important;
                                     }
 
-                                    /* Force article to fill exactly 700px vertically and 490px horizontally */
-                                    [class*=""ArticleItemContainer""] {
-                                        height: 700px !important;
-                                        min-height: 700px !important;
-                                        max-height: 700px !important;
-                                        width: 490px !important;
-                                        max-width: 490px !important;
-                                        min-width: 490px !important;
-                                        margin: 0 auto !important;
-                                        padding: 0 !important;
-                                        position: relative !important;
-                                        display: block !important;
-                                    }
-
-                                    /* Force flex layout to be absolute full-screen inside article */
-                                    [class*=""DivContentFlexLayout""] {
-                                        width: 490px !important;
-                                        height: 700px !important;
-                                        max-width: 490px !important;
-                                        max-height: 700px !important;
-                                        position: absolute !important;
-                                        top: 0 !important;
-                                        left: 0 !important;
-                                        margin: 0 !important;
-                                        padding: 0 !important;
-                                        display: block !important;
-                                    }
-
-                                    /* Force media card (video player wrapper) to occupy the entire viewport */
-                                    [class*=""SectionMediaCardContainer""] {
-                                        width: 490px !important;
-                                        height: 700px !important;
-                                        max-width: 490px !important;
-                                        max-height: 700px !important;
-                                        min-width: 490px !important;
-                                        min-height: 700px !important;
-                                        position: absolute !important;
-                                        top: 0 !important;
-                                        left: 0 !important;
-                                        margin: 0 !important;
-                                        padding: 0 !important;
-                                    }
-
-                                    /* Force video element to fit nicely inside the container */
-                                    [class*=""SectionMediaCardContainer""] video {
+                                    /* Ensure video fills the entire viewport */
+                                    video, .video-stream, .html5-main-video {
                                         width: 100% !important;
                                         height: 100% !important;
                                         object-fit: contain !important;
-                                    }
-
-                                    /* Reposition interaction action buttons to bottom-right corner over the video player with Glassmorphism and Neon Cyan glow */
-                                    [class*=""SectionActionBarContainer""] {
-                                        position: absolute !important;
-                                        bottom: 70px !important;
-                                        right: 10px !important;
-                                        z-index: 999 !important;
-                                        background: rgba(10, 15, 20, 0.65) !important;
-                                        backdrop-filter: blur(10px) !important;
-                                        -webkit-backdrop-filter: blur(10px) !important;
-                                        border: 1px solid rgba(0, 255, 220, 0.3) !important;
-                                        border-radius: 20px !important;
-                                        padding: 12px 6px !important;
-                                        box-shadow: 0 0 15px rgba(0, 255, 220, 0.25) !important;
-                                        display: flex !important;
-                                        flex-direction: column !important;
-                                        align-items: center !important;
-                                        gap: 10px !important;
-                                    }
-
-                                    /* Custom hover animations for the actions */
-                                    [class*=""SectionActionBarContainer""] button,
-                                    [class*=""SectionActionBarContainer""] [role=""button""] {
-                                        background: transparent !important;
-                                        border: none !important;
-                                        transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-                                        cursor: pointer !important;
-                                    }
-                                    [class*=""SectionActionBarContainer""] button:hover,
-                                    [class*=""SectionActionBarContainer""] [role=""button""]:hover {
-                                        transform: scale(1.15) !important;
-                                        filter: drop-shadow(0 0 5px rgba(0, 255, 220, 0.8)) !important;
-                                    }
-
-                                    /* Neon recoloring for SVG icons */
-                                    [class*=""SectionActionBarContainer""] svg {
-                                        fill: #00ffd2 !important;
-                                        color: #00ffd2 !important;
-                                    }
-
-                                    /* Courier style for numbers/counters */
-                                    [class*=""SectionActionBarContainer""] strong {
-                                        color: #ffffff !important;
-                                        font-family: 'Courier New', Courier, monospace !important;
-                                        font-size: 11px !important;
-                                        text-shadow: 0 0 4px rgba(0, 255, 220, 0.6) !important;
-                                        letter-spacing: 0.5px !important;
-                                        margin-top: 2px !important;
-                                        font-weight: 700 !important;
-                                    }
-
-                                    /* Reposition and style video info (user, description, music) as a sleek sci-fi terminal box */
-                                    [class*=""DivVideoInfoContainer""],
-                                    [class*=""DivDescription""],
-                                    [class*=""DivVideoDescription""] {
-                                        position: absolute !important;
-                                        bottom: 70px !important;
-                                        left: 10px !important;
-                                        width: 330px !important;
-                                        z-index: 999 !important;
-                                        background: rgba(10, 15, 20, 0.65) !important;
-                                        backdrop-filter: blur(10px) !important;
-                                        -webkit-backdrop-filter: blur(10px) !important;
-                                        border-left: 2px solid #00ffd2 !important;
-                                        border-top: 1px solid rgba(0, 255, 220, 0.2) !important;
-                                        border-right: 1px solid rgba(0, 255, 220, 0.2) !important;
-                                        border-bottom: 1px solid rgba(0, 255, 220, 0.2) !important;
-                                        border-radius: 0 12px 12px 0 !important;
-                                        padding: 10px 14px !important;
-                                        box-shadow: 0 0 15px rgba(0, 255, 220, 0.2) !important;
-                                        color: #e0f7f4 !important;
-                                        font-family: 'Courier New', Courier, monospace !important;
-                                        box-sizing: border-box !important;
-                                    }
-
-                                    /* Highlight username and tags in glowing cyan/teal */
-                                    [class*=""DivVideoInfoContainer""] a,
-                                    [class*=""DivVideoInfoContainer""] h3,
-                                    [class*=""DivVideoInfoContainer""] h4,
-                                    [class*=""DivDescription""] a,
-                                    [class*=""DivVideoDescription""] a {
-                                        color: #00ffd2 !important;
-                                        text-decoration: none !important;
-                                        font-weight: bold !important;
-                                        text-shadow: 0 0 5px rgba(0, 255, 220, 0.7) !important;
-                                    }
-
-                                    /* Style music/sound text with a glowing icon effect */
-                                    [class*=""DivMusicText""], [class*=""DivMusic""], [class*=""DivSound""], [class*=""DivMusicInfo""] {
-                                        color: #88a8a4 !important;
-                                        font-size: 11px !important;
-                                        margin-top: 8px !important;
-                                        display: flex !important;
-                                        align-items: center !important;
-                                        font-family: 'Courier New', Courier, monospace !important;
-                                    }
-
-                                    /* Hide scrollbars */
-                                    html::-webkit-scrollbar, body::-webkit-scrollbar {
-                                        display: none !important;
                                     }
                                 `;
                             }
@@ -881,155 +696,54 @@ namespace TikTokPda
                             document.addEventListener('DOMContentLoaded', inject);
                         }
 
-                        // Dump video player layout tree and article children to log file
-                        function dumpLayout() {
-                            setTimeout(function() {
-                                var video = document.querySelector('video');
-                                if (video) {
-                                    var path = [];
-                                    var parent = video;
-                                    while (parent && parent.tagName !== 'BODY') {
-                                        var info = parent.tagName;
-                                        if (parent.id) info += '#' + parent.id;
-                                        if (parent.className && typeof parent.className === 'string') {
-                                            info += '.' + parent.className.split(' ').join('.');
-                                        }
-                                        var rect = parent.getBoundingClientRect();
-                                        var style = window.getComputedStyle(parent);
-                                        info += ' (' + Math.round(rect.width) + 'x' + Math.round(rect.height) + ' at ' + Math.round(rect.left) + ',' + Math.round(rect.top) + ')';
-                                        info += ' { width:' + style.width + ', height:' + style.height + ', max-width:' + style.maxWidth + ', min-width:' + style.minWidth + ', margin:' + style.margin + ', padding:' + style.padding + ', position:' + style.position + ', top:' + style.top + ', display:' + style.display + ' }';
-                                        path.push(info);
-                                        parent = parent.parentElement;
-                                    }
-                                    console.log('VIDEO PATH:\n' + path.reverse().join('\n -> '));
-                                } else {
-                                    console.log('No video element found yet.');
-                                }
-
-                                var flexLayout = document.querySelector('[class*=""DivContentFlexLayout""]');
-                                if (flexLayout) {
-                                    var flexChildren = [];
-                                    for (var i = 0; i < flexLayout.children.length; i++) {
-                                        var el = flexLayout.children[i];
-                                        var rect = el.getBoundingClientRect();
-                                        var style = window.getComputedStyle(el);
-                                        var info = el.tagName;
-                                        if (el.id) info += '#' + el.id;
-                                        if (el.className && typeof el.className === 'string') {
-                                            info += '.' + el.className.split(' ').join('.');
-                                        }
-                                        info += ' (' + Math.round(rect.width) + 'x' + Math.round(rect.height) + ' at ' + Math.round(rect.left) + ',' + Math.round(rect.top) + ')';
-                                        info += ' { width:' + style.width + ', height:' + style.height + ', display:' + style.display + ', position:' + style.position + ' }';
-                                        flexChildren.push(info);
-                                    }
-                                    console.log('FLEX LAYOUT CHILDREN:\n' + flexChildren.join('\n'));
-                                }
-                            }, 3000);
-                        }
-                        if (document.readyState === 'complete') {
-                            dumpLayout();
-                        } else {
-                            window.addEventListener('load', dumpLayout);
-                        }
-
-                        function instrumentVideo(video) {
-                            if (video.__instrumented) return;
-                            video.__instrumented = true;
-                            console.log('Instrumenting video element: ' + (video.src || video.currentSrc));
-                            
-                            var events = ['play', 'playing', 'pause', 'waiting', 'error', 'emptied', 'loadstart', 'loadedmetadata', 'suspend', 'abort', 'stalled'];
-                            events.forEach(function(ev) {
-                                video.addEventListener(ev, function() {
-                                    console.log('VIDEO EVENT: ' + ev + ' on: ' + (video.src || video.currentSrc) + ' | Paused: ' + video.paused + ' | Muted: ' + video.muted + ' | ReadyState: ' + video.readyState);
-                                });
-                            });
-                        }
-
+                        // Auto-play routine and auto-close app download sheets
                         setInterval(function() {
-                            // Safely instrument all video elements and enforce mute for autoplay
-                            document.querySelectorAll('video').forEach(instrumentVideo);
-
-                            // Automatically hide app store link wrappers safely (only 1 level parent)
-                            var appLinks = document.querySelectorAll('a[href*=""apps.apple.com""], a[href*=""play.google.com""], a[href*=""onelink.me""]');
-                            appLinks.forEach(function(link) {
-                                link.style.setProperty('display', 'none', 'important');
-                                var parent = link.parentElement;
-                                if (parent) {
-                                    parent.style.setProperty('display', 'none', 'important');
+                            // Find current video element
+                            var activeVideo = document.querySelector('video');
+                            if (activeVideo && activeVideo.paused && !isUserClick && !isScrolling && !activeVideo.ended) {
+                                var videoSrc = activeVideo.src || activeVideo.currentSrc;
+                                if (!activeVideo.__failedPlayAttempts) {
+                                    activeVideo.__failedPlayAttempts = 0;
                                 }
-                            });
-
-                            // Click 'Not now' buttons automatically (only leaf/specific small elements to avoid clicking wrappers/video containers)
-                            var elements = document.querySelectorAll('button, a, [role=""button""], div, span');
-                            var targets = ['not now', 'не зараз', 'не сейчас', 'пізніше', 'позже', 'потім'];
-                            elements.forEach(function(el) {
-                                var text = (el.innerText || el.textContent || '').trim().toLowerCase();
-                                if (targets.indexOf(text) >= 0) {
-                                    var isInteractive = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button';
-                                    var isLeaf = el.children.length === 0;
-                                    if (isInteractive || isLeaf) {
-                                        console.log('AUTO-CLICKING element:', el.tagName, el.className, 'Text:', text);
-                                        el.click();
-                                    }
+                                if (activeVideo.__failedPlayAttempts < 3) {
+                                    activeVideo.play().catch(function(err) {
+                                        activeVideo.__failedPlayAttempts++;
+                                        if (activeVideo.__failedPlayAttempts === 3) {
+                                            console.error('Auto-play failed permanently (3 attempts) for: ' + videoSrc + ' | Error: ' + err.message);
+                                        }
+                                    });
                                 }
-                            });
+                            }
 
-                            // Auto-click close buttons to dismiss login/signup/app download popups
-                            var closeButtons = document.querySelectorAll([
-                                '[data-e2e=""close-button""]',
-                                '[aria-label=""Close""]',
-                                '[aria-label=""close""]',
-                                '[class*=""close-btn""]',
-                                '[class*=""CloseBtn""]',
-                                '[class*=""closeIcon""]',
-                                '[class*=""CloseIcon""]',
-                                '[class*=""close-icon""]',
-                                '[class*=""close_icon""]',
-                                '.tux-Modal-close',
-                                '.tux-Dialog-close'
+                            // Dismiss common popups and bottom sheets asking to install the app
+                            var dismissButtons = document.querySelectorAll([
+                                '.ytm-promosheet-cancel-button',
+                                '.ytm-bottom-sheet-close-button',
+                                'button[aria-label=""No thanks""]',
+                                'button[aria-label=""Not now""]',
+                                'button[aria-label=""Cancel""]',
+                                '.close-button',
+                                '.dismiss-button'
                             ].join(','));
                             
-                            closeButtons.forEach(function(btn) {
-                                // Do not auto-click close if the container modal contains input elements (login form)
-                                var parentModal = btn.closest('[class*=""modal""], [class*=""Modal""], [class*=""dialog""], [class*=""Dialog""], [class*=""popup""], [class*=""Popup""]');
-                                if (parentModal && parentModal.querySelector('input')) {
-                                    return;
-                                }
+                            dismissButtons.forEach(function(btn) {
                                 if (btn && typeof btn.click === 'function') {
-                                    console.log('AUTO-CLICKING close button: ' + btn.className);
+                                    console.log('AUTO-CLICKING YouTube close button');
                                     btn.click();
                                 }
                             });
 
-                            // Auto-play the active video if it is paused (not user-clicked, not scrolling, not ended)
-                            var activeVideo = null;
-                            document.querySelectorAll('video').forEach(function(video) {
-                                var rect = video.getBoundingClientRect();
-                                if (rect.top >= -200 && rect.top <= 200) {
-                                    activeVideo = video;
+                            // Remove overlay promo sheets directly if they exist
+                            var sheets = document.querySelectorAll('ytm-promosheet, ytm-bottom-sheet-renderer, .ytm-app-promo-banner');
+                            sheets.forEach(function(sheet) {
+                                if (sheet) {
+                                    sheet.remove();
                                 }
                             });
-
-                            if (activeVideo && activeVideo.paused && !isUserClick && !isScrolling && !activeVideo.ended) {
-                                console.log('AUTO-PLAYING active video which was paused: ' + (activeVideo.src || activeVideo.currentSrc));
-                                activeVideo.play().catch(function(err) {
-                                    console.error('Auto-play failed: ' + err.message);
-                                });
-                            }
-
-                            // Enforce scrollability on top-level body and html elements only
-                            if (document.body) {
-                                document.body.style.setProperty('overflow', 'auto', 'important');
-                                document.body.style.setProperty('position', 'static', 'important');
-                            }
-                            if (document.documentElement) {
-                                document.documentElement.style.setProperty('overflow', 'auto', 'important');
-                            }
                         }, 500);
                     })();
                 ";
                 await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script);
-
 
                 webView.NavigationStarting += (s, e) => 
                 { 
@@ -1040,25 +754,41 @@ namespace TikTokPda
                     string lowerUri = uri.ToLower();
                     Log("[PDA] Navigation starting: " + uri);
                     
+                    // Domain whitelist check for security / anti-phishing
+                    bool isTrustedDomain = lowerUri.StartsWith("about:") || 
+                                           lowerUri.Contains("youtube.com") || 
+                                           lowerUri.Contains("google.com") || 
+                                           lowerUri.Contains("gstatic.com") || 
+                                           lowerUri.Contains("ggpht.com") || 
+                                           lowerUri.Contains("ytimg.com");
+
+                    if (!isTrustedDomain)
+                    {
+                        e.Cancel = true;
+                        Log("[PDA] Blocked untrusted domain navigation: " + uri);
+                        return;
+                    }
+                    
                     bool isAppStoreOrDownload = lowerUri.Contains("apps.apple.com") || 
                                                 lowerUri.Contains("play.google.com") || 
                                                 lowerUri.Contains("itunes.apple.com") || 
                                                 lowerUri.Contains("onelink.me") || 
-                                                lowerUri.Contains("tiktok.com/download") ||
                                                 lowerUri.Contains("apple.co");
                                                 
-                    bool isCustomProtocol = !lowerUri.StartsWith("http://") && !lowerUri.StartsWith("https://");
+                    bool isCustomProtocol = !lowerUri.StartsWith("http://") && 
+                                            !lowerUri.StartsWith("https://") && 
+                                            !lowerUri.StartsWith("about:");
                     
                     if (isAppStoreOrDownload || isCustomProtocol || lowerUri.StartsWith("itms-apps") || lowerUri.Contains("market://"))
                     {
                         if (isCustomProtocol || lowerUri.StartsWith("itms-apps"))
                         {
-                            e.Cancel = true; // Safe to cancel custom protocols immediately without white screen
+                            e.Cancel = true;
                             Log("[PDA] Instantly blocked custom protocol: " + uri);
                         }
                         else
                         {
-                            shouldBlockUnload = true; // Let it trigger beforeunload so we can block it without a white screen
+                            shouldBlockUnload = true;
                             Log("[PDA] Redirect detected. Enabled BeforeUnload interception for: " + uri);
                         }
                     }
@@ -1094,7 +824,6 @@ namespace TikTokPda
             ledTimer.Tick += (s, e) =>
             {
                 ledState = !ledState;
-                // Invalidate the LED area to repaint
                 this.Invalidate(new Rectangle(25, 15, 30, 30));
             };
             ledTimer.Start();
@@ -1109,7 +838,6 @@ namespace TikTokPda
             {
                 if (e.Y < 65 || e.Y > 765 || e.X < 25 || e.X > 515)
                 {
-                    // Check if clicked inside a button bounds
                     foreach (var button in buttons)
                     {
                         if (button.Bounds.Contains(e.Location))
@@ -1172,23 +900,19 @@ namespace TikTokPda
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             // --- BEZEL BACKGROUND ---
-            // Draw dark metallic border gradient
             using (LinearGradientBrush brush = new LinearGradientBrush(this.ClientRectangle, 
                 Color.FromArgb(40, 44, 52), Color.FromArgb(20, 22, 26), 45F))
             {
                 g.FillRectangle(brush, this.ClientRectangle);
             }
 
-            // Draw inner screen casing border
             using (Pen pen = new Pen(Color.FromArgb(12, 13, 15), 3))
             {
                 g.DrawRectangle(pen, 23, 63, 494, 704);
             }
 
-            // Outer border line
             using (Pen pen = new Pen(Color.FromArgb(60, 65, 75), 2))
             {
-                // Top/sides outer highlights
                 g.DrawArc(pen, 1, 1, 30, 30, 180, 90);
                 g.DrawLine(pen, 16, 1, Width - 16, 1);
                 g.DrawArc(pen, Width - 31, 1, 30, 30, 270, 90);
@@ -1208,25 +932,22 @@ namespace TikTokPda
             }
 
             // --- LED INDICATOR ---
-            // Active Blinking LED
-            Color ledColor = ledState ? Color.FromArgb(0, 255, 180) : Color.FromArgb(0, 60, 45);
+            Color ledColor = ledState ? Color.FromArgb(255, 0, 50) : Color.FromArgb(80, 0, 10); // Red LED for YouTube
             using (SolidBrush brush = new SolidBrush(ledColor))
             {
                 g.FillEllipse(brush, 35, 23, 14, 14);
             }
-            // Glow overlay if LED is active
             if (ledState)
             {
-                using (PathGradientBrush rgb = CreateRadialBrush(new PointF(42, 30), 12, Color.FromArgb(100, 0, 255, 180), Color.Transparent))
+                using (PathGradientBrush rgb = CreateRadialBrush(new PointF(42, 30), 12, Color.FromArgb(100, 255, 0, 50), Color.Transparent))
                 {
                     ColorBlend cb = new ColorBlend(3);
-                    cb.Colors = new Color[] { Color.FromArgb(100, 0, 255, 180), Color.FromArgb(30, 0, 255, 180), Color.Transparent };
+                    cb.Colors = new Color[] { Color.FromArgb(100, 255, 0, 50), Color.FromArgb(30, 255, 0, 50), Color.Transparent };
                     cb.Positions = new float[] { 0.0f, 0.4f, 1.0f };
                     rgb.InterpolationColors = cb;
                     g.FillEllipse(rgb, 27, 15, 30, 30);
                 }
             }
-            // Static Power LED
             using (SolidBrush brush = new SolidBrush(Color.FromArgb(200, 30, 30)))
             {
                 g.FillEllipse(brush, 60, 23, 8, 8);
@@ -1236,14 +957,14 @@ namespace TikTokPda
             using (Font font = new Font("Courier New", 9, FontStyle.Bold))
             using (SolidBrush brush = new SolidBrush(Color.FromArgb(130, 140, 150)))
             {
-                g.DrawString("EUROPA-OS v4.11", font, brush, 80, 21);
+                g.DrawString("YT-OS v1.00", font, brush, 80, 21);
             }
 
             // Loading status text
             if (isLoading)
             {
                 using (Font font = new Font("Courier New", 8, FontStyle.Bold))
-                using (SolidBrush brush = new SolidBrush(Color.FromArgb(0, 255, 220)))
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(255, 50, 50)))
                 {
                     g.DrawString("[NET SYNCING]", font, brush, 410, 22);
                 }
@@ -1260,7 +981,6 @@ namespace TikTokPda
             // --- DRAW BUTTONS ---
             foreach (var button in buttons)
             {
-                // Draw button border and fill
                 Color fill = button.IsHovered 
                     ? Color.FromArgb(45, 48, 56) 
                     : Color.FromArgb(30, 32, 38);
@@ -1276,7 +996,6 @@ namespace TikTokPda
                     g.DrawRectangle(pen, button.Bounds);
                 }
 
-                // Draw button text
                 using (Font font = new Font("Courier New", 9, FontStyle.Bold))
                 using (SolidBrush brush = new SolidBrush(button.IsHovered ? button.GlowColor : Color.FromArgb(180, 190, 200)))
                 {
@@ -1286,7 +1005,6 @@ namespace TikTokPda
                     g.DrawString(button.Label, font, brush, xText, yText);
                 }
 
-                // Draw neon glow for hovered button
                 if (button.IsHovered)
                 {
                     using (Pen pen = new Pen(Color.FromArgb(50, button.GlowColor), 4))
@@ -1298,6 +1016,7 @@ namespace TikTokPda
                 }
             }
         }
+
         private static PathGradientBrush CreateRadialBrush(PointF center, float radius, Color centerColor, Color surroundColor)
         {
             GraphicsPath path = new GraphicsPath();

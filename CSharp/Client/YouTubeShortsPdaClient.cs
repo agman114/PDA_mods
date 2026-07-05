@@ -6,11 +6,11 @@ using System.Linq;
 using HarmonyLib;
 using Barotrauma;
 
-namespace TikTokPda
+namespace YouTubeShortsPda
 {
-    public class TikTokPdaPlugin : IAssemblyPlugin
+    public class YouTubeShortsPdaPlugin : IAssemblyPlugin
     {
-        public static TikTokPdaPlugin Instance { get; private set; }
+        public static YouTubeShortsPdaPlugin Instance { get; private set; }
         private static Process pdaProcess;
         private static string modDir;
         private static DateTime lastToggleTime = DateTime.MinValue;
@@ -21,28 +21,28 @@ namespace TikTokPda
             
             // Find our mod directory from the enabled packages
             var package = ContentPackageManager.EnabledPackages.All
-                .FirstOrDefault(p => p.Name.IndexOf("TikTok PDA", StringComparison.OrdinalIgnoreCase) >= 0);
+                .FirstOrDefault(p => p.Name.IndexOf("YouTube Shorts PDA", StringComparison.OrdinalIgnoreCase) >= 0);
             
             if (package != null)
             {
                 modDir = Path.GetFullPath(package.Dir);
-                LuaCsLogger.Log("TikTok PDA: Mod directory located at " + modDir);
+                LuaCsLogger.Log("YouTube Shorts PDA: Mod directory located at " + modDir);
             }
             else
             {
-                LuaCsLogger.LogError("TikTok PDA: Could not find enabled package directory!");
+                LuaCsLogger.LogError("YouTube Shorts PDA: Could not find enabled package directory!");
             }
 
             // Apply Harmony patches
             try
             {
-                var harmony = new Harmony("com.antigravity.tiktokpda");
+                var harmony = new Harmony("com.antigravity.youtubeshortspda");
                 harmony.PatchAll();
-                LuaCsLogger.Log("TikTok PDA: Harmony patches applied successfully.");
+                LuaCsLogger.Log("YouTube Shorts PDA: Harmony patches applied successfully.");
             }
             catch (Exception ex)
             {
-                LuaCsLogger.LogError("TikTok PDA: Failed to apply Harmony patches: " + ex.Message);
+                LuaCsLogger.LogError("YouTube Shorts PDA: Failed to apply Harmony patches: " + ex.Message);
             }
         }
 
@@ -77,14 +77,14 @@ namespace TikTokPda
         {
             if (string.IsNullOrEmpty(modDir))
             {
-                LuaCsLogger.LogError("TikTok PDA: Cannot start browser, mod directory not resolved.");
+                LuaCsLogger.LogError("YouTube Shorts PDA: Cannot start browser, mod directory not resolved.");
                 return;
             }
             
             string exePath = Path.Combine(modDir, "Subprocess", "PdaBrowser.exe");
             if (!File.Exists(exePath))
             {
-                LuaCsLogger.LogError("TikTok PDA: Browser executable not found at " + exePath);
+                LuaCsLogger.LogError("YouTube Shorts PDA: Browser executable not found at " + exePath);
                 return;
             }
 
@@ -98,11 +98,11 @@ namespace TikTokPda
                 pdaProcess.StartInfo.WorkingDirectory = Path.Combine(modDir, "Subprocess");
                 pdaProcess.StartInfo.UseShellExecute = false;
                 pdaProcess.Start();
-                LuaCsLogger.Log("TikTok PDA: Started browser process (PID: " + pdaProcess.Id + ")");
+                LuaCsLogger.Log("YouTube Shorts PDA: Started browser process (PID: " + pdaProcess.Id + ")");
             }
             catch (Exception ex)
             {
-                LuaCsLogger.LogError("TikTok PDA: Failed to start browser process: " + ex.Message);
+                LuaCsLogger.LogError("YouTube Shorts PDA: Failed to start browser process: " + ex.Message);
             }
         }
 
@@ -115,14 +115,18 @@ namespace TikTokPda
                     if (!pdaProcess.HasExited)
                     {
                         pdaProcess.Kill();
-                        LuaCsLogger.Log("TikTok PDA: Terminated browser process.");
+                        LuaCsLogger.Log("YouTube Shorts PDA: Terminated browser process.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    LuaCsLogger.LogError("TikTok PDA: Error killing browser process: " + ex.Message);
+                    LuaCsLogger.LogError("YouTube Shorts PDA: Error killing browser process: " + ex.Message);
                 }
-                pdaProcess = null;
+                finally
+                {
+                    pdaProcess.Dispose();
+                    pdaProcess = null;
+                }
             }
         }
 
@@ -131,6 +135,11 @@ namespace TikTokPda
             // If process exited externally, clean reference
             if (pdaProcess != null && pdaProcess.HasExited)
             {
+                try
+                {
+                    pdaProcess.Dispose();
+                }
+                catch { }
                 pdaProcess = null;
             }
 
@@ -144,8 +153,8 @@ namespace TikTokPda
                 var leftHandItem = Character.Controlled.Inventory.GetItemInLimbSlot(InvSlotType.LeftHand);
                 var rightHandItem = Character.Controlled.Inventory.GetItemInLimbSlot(InvSlotType.RightHand);
 
-                if ((leftHandItem != null && leftHandItem.Prefab.Identifier.Value == "tiktokpda") ||
-                    (rightHandItem != null && rightHandItem.Prefab.Identifier.Value == "tiktokpda"))
+                if ((leftHandItem != null && leftHandItem.Prefab.Identifier.Value == "youtube-shorts-pda") ||
+                    (rightHandItem != null && rightHandItem.Prefab.Identifier.Value == "youtube-shorts-pda"))
                 {
                     hasItInHand = true;
                 }
@@ -170,10 +179,10 @@ namespace TikTokPda
             // Only trigger for local client player
             if (Character.Controlled != user) return true;
 
-            if (__instance.Prefab.Identifier.Value == "tiktokpda")
+            if (__instance.Prefab.Identifier.Value == "youtube-shorts-pda")
             {
-                LuaCsLogger.Log("Toggling TikTok PDA!");
-                TikTokPdaPlugin.TogglePda();
+                LuaCsLogger.Log("Toggling YouTube Shorts PDA!");
+                YouTubeShortsPdaPlugin.TogglePda();
                 return false; // Prevent game default action
             }
 
@@ -187,7 +196,7 @@ namespace TikTokPda
         [HarmonyPostfix]
         static void Postfix()
         {
-            TikTokPdaPlugin.Update();
+            YouTubeShortsPdaPlugin.Update();
         }
     }
 
@@ -196,12 +205,12 @@ namespace TikTokPda
     {
         public static void Log(string message)
         {
-            DebugConsole.NewMessage("[TikTokPDA] " + message, Microsoft.Xna.Framework.Color.LightGreen);
+            DebugConsole.NewMessage("[YouTubeShortsPDA] " + message, Microsoft.Xna.Framework.Color.LightGreen);
         }
 
         public static void LogError(string message)
         {
-            DebugConsole.ThrowError("[TikTokPDA Error] " + message);
+            DebugConsole.ThrowError("[YouTubeShortsPDA Error] " + message);
         }
     }
 }

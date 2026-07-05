@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Items>
-  <Item name="TikTok PDA" identifier="tiktokpda" category="Equipment" Tags="smallitem,pda" cargocontaineridentifier="metalcrate" description="A modern Europan PDA capable of accessing the local network... and somehow TikTok." scale="0.04" price="150" deconstructtime="10">
+  <Item name="YouTube Shorts PDA" identifier="youtube-shorts-pda" category="Equipment" Tags="smallitem,pda" cargocontaineridentifier="metalcrate" description="A modern Europan PDA capable of accessing the local network... and somehow YouTube Shorts." scale="0.04" price="150" deconstructtime="10">
     <PreferredContainer primary="crewcab" secondary="wreckcab" spawnprobability="0.5" />
     <Fabricate suitablefabricators="fabricator" category="Equipment" amount="1" requiredtime="10" requiresrecipe="false">
       <Item identifier="fpgacircuit" />
