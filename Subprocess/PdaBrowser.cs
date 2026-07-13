@@ -562,6 +562,7 @@ namespace YouTubeShortsPda
                             var originalPause = HTMLVideoElement.prototype.pause;
                             HTMLVideoElement.prototype.pause = function() {
                                 var stack = new Error().stack || '';
+                                console.log('VIDEO PAUSE CALLED | Stack: ' + stack.substring(0, 250));
                                 var stackLower = stack.toLowerCase();
                                 
                                 var isFocusBlurPause = stackLower.indexOf('blur') >= 0 || 
@@ -589,7 +590,23 @@ namespace YouTubeShortsPda
                         let isDragging = false;
                         let startY = 0;
                         let scrollTop = 0;
+                        let scrollTarget = null;
                         
+                        function getScrollParent(node) {
+                            if (node == null) return null;
+                            if (node === document.body || node === document.documentElement) return window;
+                            
+                            // Check if the element is scrollable
+                            if (node.scrollHeight > node.clientHeight) {
+                                var style = window.getComputedStyle(node);
+                                var overflowY = style.overflowY || style.overflow;
+                                if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
+                                    return node;
+                                }
+                            }
+                            return getScrollParent(node.parentNode);
+                        }
+
                         window.addEventListener('mousedown', function(e) {
                             var tag = e.target.tagName.toLowerCase();
                             if (tag === 'button' || tag === 'a' || tag === 'input' || tag === 'svg' || tag === 'path' ||
@@ -597,33 +614,44 @@ namespace YouTubeShortsPda
                                 return;
                             }
                             
+                            scrollTarget = getScrollParent(e.target) || window;
                             isDragging = true;
                             startY = e.clientY;
-                            scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                            
+                            if (scrollTarget === window) {
+                                scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                            } else {
+                                scrollTop = scrollTarget.scrollTop;
+                            }
                             document.body.style.cursor = 'grabbing';
-                        });
+                        }, true);
 
                         window.addEventListener('mousemove', function(e) {
-                            if (!isDragging) return;
+                            if (!isDragging || !scrollTarget) return;
                             e.preventDefault();
                             const y = e.clientY;
                             const walk = (y - startY) * 1.5;
-                            window.scrollTo(0, scrollTop - walk);
-                        });
+                            
+                            if (scrollTarget === window) {
+                                window.scrollTo(0, scrollTop - walk);
+                            } else {
+                                scrollTarget.scrollTop = scrollTop - walk;
+                            }
+                        }, true);
 
                         window.addEventListener('mouseup', function() {
                             if (isDragging) {
                                 isDragging = false;
                                 document.body.style.cursor = 'default';
                             }
-                        });
+                        }, true);
 
                         window.addEventListener('mouseleave', function() {
                             if (isDragging) {
                                 isDragging = false;
                                 document.body.style.cursor = 'default';
                             }
-                        });
+                        }, true);
 
                         // Forward logs
                         var originalLog = console.log;
