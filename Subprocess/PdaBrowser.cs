@@ -53,7 +53,7 @@ namespace YouTubeShortsPda
         private bool shouldBlockUnload = false;
 
         private const string InitialUrl = "https://www.youtube.com/shorts";
-        private const string MobileUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+        private const string DesktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
         public PdaBrowser() : this(IntPtr.Zero) { }
 
@@ -93,8 +93,7 @@ namespace YouTubeShortsPda
                     Console.WriteLine("[PDA] Setting parent window to: " + parentHandle);
                     SetParent(this.Handle, parentHandle);
                     
-                    // Attach thread input to fix cross-process keyboard focus issues
-                    uint parentPid = 0;
+                    uint parentPid;
                     uint parentThreadId = GetWindowThreadProcessId(parentHandle, out parentPid);
                     uint childThreadId = GetCurrentThreadId();
                     if (parentThreadId != 0 && childThreadId != 0 && parentThreadId != childThreadId)
@@ -168,7 +167,6 @@ namespace YouTubeShortsPda
 
         private void InitializePdaButtons()
         {
-            // Bottom buttons (Y coordinates 785 - 835)
             buttons = new PdaButton[]
             {
                 new PdaButton
@@ -181,7 +179,7 @@ namespace YouTubeShortsPda
                 },
                 new PdaButton
                 {
-                    Bounds = new Rectangle(120, 785, 85, 55), // Home is slightly larger
+                    Bounds = new Rectangle(120, 785, 85, 55),
                     Label = "HOME",
                     BorderColor = Color.FromArgb(0, 180, 160),
                     GlowColor = Color.FromArgb(0, 255, 220),
@@ -218,7 +216,7 @@ namespace YouTubeShortsPda
         {
             try
             {
-                string pdaDataDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "YouTubeShortsPDA");
+                string pdaDataDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "YouTubeShortsPDA_v2");
                 System.IO.Directory.CreateDirectory(pdaDataDir);
                 string logPath = System.IO.Path.Combine(pdaDataDir, "pda_browser.log");
                 System.IO.File.AppendAllText(logPath, string.Format("[{0}] {1}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), message));
@@ -241,17 +239,25 @@ namespace YouTubeShortsPda
 
                 this.Controls.Add(webView);
 
-                // Set up environment with a local user data folder to avoid permission errors
-                string localAppDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "YouTubeShortsPDA", "WebViewData");
+                // Set up environment with an isolated user data folder to guarantee flags are applied
+                string localAppDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "YouTubeShortsPDA_v2", "WebViewData");
                 Log("[PDA] Creating WebView2 environment in " + localAppDir);
-                var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-features=CalculateWindowOcclusion");
+                
+                // Block window occlusion calculations and background throttling in WebView2
+                var options = new CoreWebView2EnvironmentOptions(
+                    "--autoplay-policy=no-user-gesture-required " +
+                    "--disable-background-timer-throttling " +
+                    "--disable-backgrounding-occluded-windows " +
+                    "--disable-features=CalculateWindowOcclusion"
+                );
+                
                 var env = await CoreWebView2Environment.CreateAsync(null, localAppDir, options);
                 Log("[PDA] WebView2 environment created. Initializing control...");
                 await webView.EnsureCoreWebView2Async(env);
                 Log("[PDA] WebView2 control initialized successfully.");
 
-                // Set user agent to a mobile agent for vertical layout
-                webView.CoreWebView2.Settings.UserAgent = MobileUserAgent;
+                // Set user agent to a desktop agent for native mouse wheel/arrow key support
+                webView.CoreWebView2.Settings.UserAgent = DesktopUserAgent;
                 webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
@@ -373,7 +379,7 @@ namespace YouTubeShortsPda
                         popupForm.Show(this);
                         await popupWebView.EnsureCoreWebView2Async(env);
 
-                        popupWebView.CoreWebView2.Settings.UserAgent = MobileUserAgent;
+                        popupWebView.CoreWebView2.Settings.UserAgent = DesktopUserAgent;
                         popupWebView.CoreWebView2.Settings.IsZoomControlEnabled = false;
                         popupWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
 
@@ -398,7 +404,8 @@ namespace YouTubeShortsPda
                     }
                 };
 
-                // Inject CSS/JS scripts to style mobile YouTube Shorts, disable app popups, and support drag-to-scroll
+                // Inject CSS/JS scripts to style YouTube Shorts desktop layout to fit the PDA perfectly, 
+                // override focus/visibility APIs, and support drag-to-scroll
                 string script = @"
                     (function() {
                         // Helper to check for app store redirection links
@@ -410,8 +417,8 @@ namespace YouTubeShortsPda
                                    lowerUrl.indexOf('itunes.apple.com') >= 0 || 
                                    lowerUrl.indexOf('onelink.me') >= 0 || 
                                    lowerUrl.indexOf('apple.co') >= 0 ||
-                                   lowerUrl.indexOf('itms-apps') >= 0 ||
-                                   lowerUrl.indexOf('market://') >= 0 ||
+                                   lowerUrl.startsWith('itms-apps') ||
+                                   lowerUrl.contains('market://') ||
                                    (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://') && !lowerUrl.startsWith('about:') && !lowerUrl.startsWith('javascript:'));
                         }
 
@@ -483,31 +490,7 @@ namespace YouTubeShortsPda
                             }
                         }, true);
 
-                        var isScrolling = false;
-                        var isUserClick = false;
-                        
-                        var scrollTimeout;
-                        function setScrolling() {
-                            isScrolling = true;
-                            clearTimeout(scrollTimeout);
-                            scrollTimeout = setTimeout(function() {
-                                isScrolling = false;
-                            }, 1000);
-                        }
-                        window.addEventListener('scroll', setScrolling, true);
-                        window.addEventListener('wheel', setScrolling, true);
-                        window.addEventListener('touchmove', setScrolling, true);
-                        
-                        var clickTimeout;
-                        window.addEventListener('mousedown', function(e) {
-                            isUserClick = true;
-                            clearTimeout(clickTimeout);
-                            clickTimeout = setTimeout(function() {
-                                isUserClick = false;
-                            }, 300);
-                        }, true);
-
-                        // Prevent focus/visibility blur pauses by YouTube
+                        // Prevent focus/visibility blur pauses by YouTube (override on prototype level)
                         try {
                             Object.defineProperty(Document.prototype, 'visibilityState', {
                                 get: function() { return 'visible'; },
@@ -551,14 +534,8 @@ namespace YouTubeShortsPda
                             console.error('Focus override failed:', e);
                         }
 
-                        // Override video play/pause
+                        // Log pause calls to help audit remaining pauses
                         try {
-                            var originalPlay = HTMLVideoElement.prototype.play;
-                            HTMLVideoElement.prototype.play = function() {
-                                console.log('VIDEO PLAY CALLED');
-                                return originalPlay.apply(this, arguments);
-                            };
-
                             var originalPause = HTMLVideoElement.prototype.pause;
                             HTMLVideoElement.prototype.pause = function() {
                                 var stack = new Error().stack || '';
@@ -586,7 +563,7 @@ namespace YouTubeShortsPda
                             return 'Block';
                         });
 
-                        // Drag-to-scroll navigation helper
+                        // Drag-to-scroll navigation helper that dynamically scrolls any container
                         let isDragging = false;
                         let startY = 0;
                         let scrollTop = 0;
@@ -596,7 +573,6 @@ namespace YouTubeShortsPda
                             if (node == null) return null;
                             if (node === document.body || node === document.documentElement) return window;
                             
-                            // Check if the element is scrollable
                             if (node.scrollHeight > node.clientHeight) {
                                 var style = window.getComputedStyle(node);
                                 var overflowY = style.overflowY || style.overflow;
@@ -667,7 +643,7 @@ namespace YouTubeShortsPda
                             if (originalError) originalError.apply(console, arguments);
                         };
 
-                        // Inject custom CSS styling to make YouTube mobile layout fit the PDA window perfectly
+                        // Inject custom CSS styling to make YouTube Desktop layout fit the PDA window perfectly
                         function inject() {
                             var isLogin = window.location.href.indexOf('accounts.google.com') >= 0;
                             var style = document.createElement('style');
@@ -680,39 +656,58 @@ namespace YouTubeShortsPda
                                 `;
                             } else {
                                 style.innerHTML = `
-                                    /* Hide YouTube Mobile Navigation Header, Pivot Bar, App Store Banners, Promos */
-                                    ytm-header-bar, ytm-pivot-bar-renderer, ytm-app-header-host,
-                                    .mobile-app-banner, ytm-promosheet, ytm-bottom-sheet-renderer,
-                                    a[href*=""play.google.com""], a[href*=""apps.apple.com""],
-                                    .ytm-app-promo, .ytm-open-app-button,
-                                    .shorts-mobile-header, .shorts-header-container {
+                                    /* Hide desktop header (masthead), left sidebar (guide), mini sidebar, and guide buttons */
+                                    #masthead-container, ytd-masthead,
+                                    #guide, ytd-guide-renderer, ytd-mini-guide-renderer,
+                                    #navigation-button-down, #navigation-button-up {
                                         display: none !important;
+                                        visibility: hidden !important;
                                         width: 0 !important;
                                         height: 0 !important;
-                                        visibility: hidden !important;
                                         opacity: 0 !important;
                                         pointer-events: none !important;
                                     }
                                     
                                     /* Force background black for all components */
-                                    html, body, #app, ytm-app, ytm-shorts, .shorts-container {
+                                    html, body, #app, ytd-app, ytd-page-manager, #page-manager, #columns, #contentContainer {
                                         background-color: #000000 !important;
                                         background: #000000 !important;
+                                    }
+
+                                    /* Force layout margins/paddings to 0 to align center */
+                                    ytd-page-manager {
+                                        margin-left: 0 !important;
+                                        padding-top: 0 !important;
+                                    }
+                                    #page-manager {
+                                        margin-top: 0 !important;
+                                    }
+                                    #columns {
+                                        padding-left: 0 !important;
+                                        padding-right: 0 !important;
+                                    }
+
+                                    /* Scale the YouTube Shorts viewer to fill exactly 490x700 */
+                                    ytd-shorts {
                                         width: 490px !important;
                                         height: 700px !important;
                                         max-width: 490px !important;
                                         max-height: 700px !important;
                                         margin: 0 auto !important;
-                                        padding: 0 !important;
-                                        position: relative !important;
-                                        overflow: hidden !important;
                                     }
 
-                                    /* Ensure video fills the entire viewport */
+                                    /* Fit video element inside container */
                                     video, .video-stream, .html5-main-video {
                                         width: 100% !important;
                                         height: 100% !important;
                                         object-fit: contain !important;
+                                    }
+
+                                    /* Hide all scrollbars */
+                                    html::-webkit-scrollbar, body::-webkit-scrollbar, ytd-shorts::-webkit-scrollbar, #shorts-container::-webkit-scrollbar {
+                                        display: none !important;
+                                        width: 0 !important;
+                                        height: 0 !important;
                                     }
                                 `;
                             }
@@ -728,11 +723,8 @@ namespace YouTubeShortsPda
                             document.addEventListener('DOMContentLoaded', inject);
                         }
 
-                        // Auto-play routine and auto-close app download sheets
+                        // Auto-close overlay sheets
                         setInterval(function() {
-                            // Auto-play is handled natively by YouTube and Chrome autoplay policy overrides
-
-                            // Dismiss common popups and bottom sheets asking to install the app
                             var dismissButtons = document.querySelectorAll([
                                 '.ytm-promosheet-cancel-button',
                                 '.ytm-bottom-sheet-close-button',
@@ -745,19 +737,10 @@ namespace YouTubeShortsPda
                             
                             dismissButtons.forEach(function(btn) {
                                 if (btn && typeof btn.click === 'function') {
-                                    console.log('AUTO-CLICKING YouTube close button');
                                     btn.click();
                                 }
                             });
-
-                            // Remove overlay promo sheets directly if they exist
-                            var sheets = document.querySelectorAll('ytm-promosheet, ytm-bottom-sheet-renderer, .ytm-app-promo-banner');
-                            sheets.forEach(function(sheet) {
-                                if (sheet) {
-                                    sheet.remove();
-                                }
-                            });
-                        }, 500);
+                        }, 1000);
                     })();
                 ";
                 await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script);
@@ -771,7 +754,7 @@ namespace YouTubeShortsPda
                     string lowerUri = uri.ToLower();
                     Log("[PDA] Navigation starting: " + uri);
                     
-                    // Domain whitelist check for security / anti-phishing
+                    // Domain whitelist check
                     bool isTrustedDomain = lowerUri.StartsWith("about:") || 
                                            lowerUri.Contains("youtube.com") || 
                                            lowerUri.Contains("google.com") || 
@@ -850,7 +833,6 @@ namespace YouTubeShortsPda
         {
             base.OnMouseDown(e);
 
-            // Drag window if clicked on the top or side bezels
             if (e.Button == MouseButtons.Left)
             {
                 if (e.Y < 65 || e.Y > 765 || e.X < 25 || e.X > 515)
@@ -949,7 +931,7 @@ namespace YouTubeShortsPda
             }
 
             // --- LED INDICATOR ---
-            Color ledColor = ledState ? Color.FromArgb(255, 0, 50) : Color.FromArgb(80, 0, 10); // Red LED for YouTube
+            Color ledColor = ledState ? Color.FromArgb(255, 0, 50) : Color.FromArgb(80, 0, 10);
             using (SolidBrush brush = new SolidBrush(ledColor))
             {
                 g.FillEllipse(brush, 35, 23, 14, 14);
@@ -977,7 +959,6 @@ namespace YouTubeShortsPda
                 g.DrawString("YT-OS v1.00", font, brush, 80, 21);
             }
 
-            // Loading status text
             if (isLoading)
             {
                 using (Font font = new Font("Courier New", 8, FontStyle.Bold))
