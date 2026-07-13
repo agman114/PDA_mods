@@ -698,22 +698,7 @@ namespace YouTubeShortsPda
 
                         // Auto-play routine and auto-close app download sheets
                         setInterval(function() {
-                            // Find current video element
-                            var activeVideo = document.querySelector('video');
-                            if (activeVideo && activeVideo.paused && !isUserClick && !isScrolling && !activeVideo.ended) {
-                                var videoSrc = activeVideo.src || activeVideo.currentSrc;
-                                if (!activeVideo.__failedPlayAttempts) {
-                                    activeVideo.__failedPlayAttempts = 0;
-                                }
-                                if (activeVideo.__failedPlayAttempts < 3) {
-                                    activeVideo.play().catch(function(err) {
-                                        activeVideo.__failedPlayAttempts++;
-                                        if (activeVideo.__failedPlayAttempts === 3) {
-                                            console.error('Auto-play failed permanently (3 attempts) for: ' + videoSrc + ' | Error: ' + err.message);
-                                        }
-                                    });
-                                }
-                            }
+                            // Auto-play is handled natively by YouTube and Chrome autoplay policy overrides
 
                             // Dismiss common popups and bottom sheets asking to install the app
                             var dismissButtons = document.querySelectorAll([
