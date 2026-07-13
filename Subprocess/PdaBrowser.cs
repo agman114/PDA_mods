@@ -244,7 +244,7 @@ namespace YouTubeShortsPda
                 // Set up environment with a local user data folder to avoid permission errors
                 string localAppDir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "YouTubeShortsPDA", "WebViewData");
                 Log("[PDA] Creating WebView2 environment in " + localAppDir);
-                var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
+                var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-features=CalculateWindowOcclusion");
                 var env = await CoreWebView2Environment.CreateAsync(null, localAppDir, options);
                 Log("[PDA] WebView2 environment created. Initializing control...");
                 await webView.EnsureCoreWebView2Async(env);
@@ -509,19 +509,23 @@ namespace YouTubeShortsPda
 
                         // Prevent focus/visibility blur pauses by YouTube
                         try {
-                            Object.defineProperty(document, 'visibilityState', {
-                                get: function() { return 'visible'; }
+                            Object.defineProperty(Document.prototype, 'visibilityState', {
+                                get: function() { return 'visible'; },
+                                configurable: true
                             });
-                            Object.defineProperty(document, 'hidden', {
-                                get: function() { return false; }
+                            Object.defineProperty(Document.prototype, 'hidden', {
+                                get: function() { return false; },
+                                configurable: true
                             });
-                            document.hasFocus = function() {
-                                return true;
-                            };
+                            Object.defineProperty(Document.prototype, 'hasFocus', {
+                                value: function() { return true; },
+                                writable: true,
+                                configurable: true
+                            });
 
                             var originalAddEventListener = window.addEventListener;
                             window.addEventListener = function(type, listener, options) {
-                                if (type === 'blur' || type === 'focusout') {
+                                if (type === 'blur' || type === 'focusout' || type === 'visibilitychange') {
                                     return;
                                 }
                                 return originalAddEventListener.apply(this, arguments);
